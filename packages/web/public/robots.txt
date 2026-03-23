@@ -1,0 +1,6 @@
+User-agent: *
+Disallow: /groups/
+Disallow: /g/
+Allow: /
+
+Sitemap: https://tabby.app/sitemap.xml

@@ -1,2 +1,38 @@
-.vscode
+node_modules/
+dist/
 .env
+.env.local
+*.env
+
+# Terraform
+infra/.terraform/
+infra/terraform.tfstate
+infra/terraform.tfstate.backup
+infra/.terraform.lock.hcl
+infra/*.tfvars
+infra/modules/lambda/placeholder.zip
+
+# Build outputs
+packages/api/dist/
+packages/web/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+.claude/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test
+coverage/
+test-results/
+playwright-report/
+
+# TypeScript
+*.tsbuildinfo

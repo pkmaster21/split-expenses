@@ -1,4 +1,4 @@
-# SplitEasy — Technical Design Spec
+# Tabby — Technical Design Spec
 
 A no-auth expense splitting PWA. Create a group via shareable link, add expenses with flexible splits, and get a simplified breakdown of who owes who — minimizing total settlement transactions.
 
@@ -8,8 +8,8 @@ A no-auth expense splitting PWA. Create a group via shareable link, add expenses
 
 ## User Flow
 
-1. Alice opens SplitEasy and creates a new group ("Ski Trip 2026")
-2. She gets a shareable link (e.g., `spliteasy.app/g/x7Kp9m`)
+1. Alice opens Tabby and creates a new group ("Ski Trip 2026")
+2. She gets a shareable link (e.g., `tabby.app/g/x7Kp9m`)
 3. Alice shares the link with Bob and Carol
 4. Bob opens the link, enters his name, and is added to the group
 5. Alice adds a $150 dinner expense, split equally three ways
@@ -40,6 +40,7 @@ This is the technical centerpiece of the project.
 **Example:**
 - Alice is owed $80 total, Bob owes $50, Carol owes $30
 - Settlement: Bob pays Alice $50, Carol pays Alice $30 (2 transactions instead of potentially more)
+- In the API response, amounts are returned as **integer cents**: `{ from: "bob", to: "alice", amount: 5000 }`. Divide by 100 to get dollars.
 
 **Why greedy works here:** A greedy algorithm makes the locally optimal choice at each step — here, always pairing the largest creditor with the largest debtor. It doesn't backtrack or explore every possible combination, which is what makes it fast (O(n log n)). The exact minimum-transaction problem is NP-hard, meaning the time to compute the perfect answer grows exponentially with group size — it's in the same class of problems as the travelling salesman. For groups under ~20 people, greedy consistently produces optimal or near-optimal results in negligible time, making the theoretical gap irrelevant in practice.
 
@@ -59,7 +60,7 @@ Validation happens in two layers:
 2. **Service layer (business logic):** Before writing to the database, validates invariants:
    - `equal` — splits are computed server-side; client does not submit individual amounts. Example: Alice submits a $150 dinner split equally among 3 people. The client just sends `{ amount: 150, split_type: "equal", members: [alice, bob, carol] }` — no per-person amounts. The server divides $150 ÷ 3 = $50 and writes three `ExpenseSplit` records itself. This avoids the problem of clients rounding differently (e.g., one client sends $49.99/$50.00/$50.01) and ensures the math is always consistent.
    - `exact` — submitted split amounts must sum to the expense total (±1 cent tolerance for rounding)
-   - `percentage` — submitted percentages must sum to 100%; server converts to amounts before storing
+   - `percentage` — submitted percentages must sum to 100%; server converts to amounts before storing. When percentages don't divide evenly into whole cents, the remainder is added to the first member in the split array (e.g., splitting $1.00 three ways at 33.33%/33.33%/33.34% gives the first member the extra cent).
 
 All arithmetic is performed in integer cents internally to avoid floating-point errors, then converted to `DECIMAL(10,2)` for storage.
 
@@ -78,6 +79,8 @@ Balances are computed **on-the-fly** by querying all `ExpenseSplit` records for 
 When a user opens a group link and enters their name, the server generates a session token stored in the browser as an **httpOnly cookie**. This token "claims" that name within the group.
 
 **Why httpOnly cookie over localStorage:** A cookie is a small piece of data the browser stores and automatically sends with every request to the relevant server — you don't need any JavaScript to manage it, the browser handles it transparently. The `httpOnly` flag on a cookie tells the browser: "don't let JavaScript read or touch this, ever." That matters because of XSS (Cross-Site Scripting) attacks — if a malicious script somehow gets injected into the page, it can read everything in `localStorage` and steal session tokens. An `httpOnly` cookie is completely invisible to JavaScript, so even a successful XSS attack can't extract it. For a no-auth app handling financial data, this is the correct default.
+
+**Token storage:** The plaintext token is sent to the browser as an httpOnly cookie. Before being written to the database, it is hashed with SHA-256 — the database never stores the raw token. If the database is compromised, the stored hashes cannot be used to forge sessions.
 
 **What this gives us:**
 - No signup friction — just enter a name and go
@@ -101,6 +104,7 @@ When a user opens a group link and enters their name, the server generates a ses
 erDiagram
     Group ||--o{ Member : "has"
     Group ||--o{ Expense : "contains"
+    Group ||--o{ ActivityLog : "logs"
     Member ||--o{ Expense : "paid_by"
     Expense ||--o{ ExpenseSplit : "split into"
     Member ||--o{ ExpenseSplit : "owes"
@@ -140,6 +144,13 @@ erDiagram
         UUID member_id FK
         decimal amount
     }
+
+    ActivityLog {
+        UUID id PK
+        UUID group_id FK
+        string message
+        timestamp created_at
+    }
 ```
 
 ```
@@ -152,7 +163,7 @@ Group
 
 Member
 ├── id (UUID)
-├── group_id (FK → Group)
+├── group_id (FK → Group, cascade delete)
 ├── display_name ("Alice")
 ├── role (owner | admin | member)
 ├── session_token (hashed)
@@ -161,8 +172,8 @@ Member
 
 Expense
 ├── id (UUID)
-├── group_id (FK → Group)
-├── paid_by (FK → Member)
+├── group_id (FK → Group, cascade delete)
+├── paid_by (FK → Member, restrict delete)
 ├── amount (DECIMAL(10,2) — never FLOAT; avoids floating-point rounding errors for financial data)
 ├── description ("Dinner at Moose Lodge")
 ├── split_type (equal | exact | percentage)
@@ -171,9 +182,15 @@ Expense
 
 ExpenseSplit
 ├── id (UUID)
-├── expense_id (FK → Expense)
-├── member_id (FK → Member)
+├── expense_id (FK → Expense, cascade delete)
+├── member_id (FK → Member, restrict delete)
 └── amount (DECIMAL(10,2) — the share this member owes)
+
+ActivityLog
+├── id (UUID)
+├── group_id (FK → Group, cascade delete)
+├── message ("Alice is now the group owner")
+└── created_at
 ```
 
 ---
@@ -184,11 +201,12 @@ ExpenseSplit
 
 | Choice | Why | Over What |
 |--------|-----|-----------|
-| **TypeScript** | Type-safety across the full stack — shared types between frontend and backend, Prisma's generated types make the ORM story coherent end-to-end, catches entire classes of bugs at compile time | Plain JavaScript |
+| **TypeScript** | Type-safety across the full stack — shared types between frontend and backend, Drizzle's inferred types compose with TypeScript throughout the stack, catches entire classes of bugs at compile time | Plain JavaScript |
 | **Fastify** | ~3x faster than Express, built-in JSON Schema validation, `@fastify/swagger` generates OpenAPI docs from route schemas automatically, better DX for API-first apps | Express |
-| **PostgreSQL** | Relational model fits the data well (groups → members → expenses → splits). ACID transactions for financial data. | DynamoDB (poor fit for relational queries, despite being AWS-native) |
+| **PostgreSQL via Neon** | Relational model fits the data well (groups → members → expenses → splits). ACID transactions for financial data. Neon provides serverless PostgreSQL — same semantics, no VPC or connection pooling required, and a free tier that replaces RDS entirely. | DynamoDB (poor fit for relational queries, despite being AWS-native) |
 | **React + Tailwind** | Industry standard, fast to build with, strong PWA ecosystem | Vue, Svelte (less resume signal) |
-| **Prisma** | Type-safe ORM with built-in migrations, schema-as-documentation, strong DX, trending in Node ecosystem. Generated types compose with TypeScript throughout the stack. | Knex (closer to SQL but less DX), raw SQL (too manual) |
+| **Drizzle ORM** | Lightweight TypeScript ORM with schema-as-code and a SQL-first query builder. Drizzle-kit manages versioned migrations; the Neon HTTP driver (`@neondatabase/serverless`) is stateless and bundles into the Lambda zip without native binaries. | Prisma (heavier runtime, native binary concerns on Lambda), Knex (no type inference), raw SQL (too manual) |
+| **TanStack Query** | Declarative server-state management — handles caching, polling, background refetches, and online/offline coordination. Replaces manual `useState` + `useEffect` fetch patterns. | SWR (less feature-rich), manual fetch + state (no caching, no deduplication) |
 | **PWA** | Single codebase for web + mobile install, offline-capable | React Native (separate build pipeline, overkill for this) |
 | **OpenAPI / Swagger** | Auto-generated from Fastify route schemas via `@fastify/swagger`. Documents the API contract, enables future client generation, demonstrates API-design thinking. | Hand-written docs (drift from code), no docs at all |
 
@@ -197,14 +215,15 @@ ExpenseSplit
 AWS is a deliberate learning goal — demonstrating cloud-native deployment patterns.
 
 - **Lambda + API Gateway:** Serverless API layer. Cold start mitigation via provisioned concurrency on critical paths (group creation, expense submission).
-- **RDS (PostgreSQL):** Managed relational database on `db.t3.micro` (free tier). Lambda connection pooling strategy: initialize the Prisma client at module scope (outside the handler) so it is reused across warm invocations; cap the Prisma connection pool to 2-3 connections to stay within `db.t3.micro`'s ~85-connection limit. RDS Proxy is a v2 addition when traffic justifies the ~$11/mo cost.
+- **Neon (serverless PostgreSQL):** Serverless Postgres accessed via Neon's HTTP driver (`@neondatabase/serverless`). Stateless by design — no connection pool configuration needed, no VPC required. Lambda connects over HTTPS on each invocation; the driver bundles into the Lambda zip with no native binaries. Eliminates the ~$13–15/mo RDS cost after the AWS free tier expires.
 - **S3 + CloudFront:** Static hosting for the React PWA. CloudFront for CDN and HTTPS.
-- **Secrets management:** RDS credentials and other secrets are stored in **AWS SSM Parameter Store** (free tier) and fetched at Lambda cold start, then cached in memory. Never passed as plain environment variables in production. "No user credentials" doesn't mean no secrets — the *server itself* has a database password that lets Lambda connect to RDS. If that password were hardcoded in source code or passed as a plain environment variable, it could leak via logs, error messages, stack traces, or anyone with read access to the AWS console. SSM Parameter Store keeps secrets encrypted at rest, access-controlled via IAM, and auditable (you can see who fetched a secret and when). Lambda fetches the value once at cold start and holds it in memory for the lifetime of that instance — it's never written to logs and never appears in the Lambda configuration visible in the console.
-- **Infrastructure as Code:** Terraform — more portable than CDK/CloudFormation, widely adopted across the industry, and adds a non-AWS-specific skill to the resume. Terraform manages: Lambda function + IAM role, API Gateway (HTTP API), RDS instance + security group + subnet group, S3 bucket + CloudFront distribution + ACM certificate, SSM Parameter Store entries.
+- **Secrets management:** The Neon connection string and other secrets are stored in **AWS SSM Parameter Store** (free tier) and fetched at Lambda cold start, then cached in memory. Never passed as plain environment variables in production. SSM Parameter Store keeps secrets encrypted at rest, access-controlled via IAM, and auditable (you can see who fetched a secret and when). Lambda fetches the value once at cold start and holds it in memory for the lifetime of that instance — it's never written to logs and never appears in the Lambda configuration visible in the console.
+- **Infrastructure as Code:** Terraform — more portable than CDK/CloudFormation, widely adopted across the industry, and adds a non-AWS-specific skill to the resume. Terraform manages: Lambda function + IAM role, API Gateway (HTTP API), S3 bucket + CloudFront distribution + ACM certificate, SSM Parameter Store entries.
 
 **Architecture decisions to discuss in interviews:**
-- Lambda cold starts and connection pooling without RDS Proxy (and why you'd add it at scale)
-- Why RDS over DynamoDB despite being on AWS (data model fit > vendor alignment)
+- Lambda cold starts and why Neon's HTTP driver eliminates the connection pool problem entirely (no VPC, no pool config, stateless per invocation)
+- Why Neon over RDS: serverless billing, no VPC overhead, same PostgreSQL semantics, permanently free at this scale
+- Why relational (PostgreSQL) over DynamoDB despite being on AWS (data model fit > vendor alignment)
 - CloudFront cache invalidation strategy for PWA updates
 - Why SSM Parameter Store over environment variables for secrets (rotation, audit trail, no accidental logging)
 
@@ -217,16 +236,18 @@ REST API served via Fastify. All routes are prefixed `/api/v1`. OpenAPI docs aut
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `POST` | `/groups` | None | Create a new group; returns group + owner session token |
-| `GET` | `/groups/:inviteCode` | None | Fetch group metadata by invite code (for join page) |
-| `POST` | `/groups/:inviteCode/join` | None | Enter a name, receive a session token |
+| `GET` | `/groups/invite/:inviteCode` | None | Fetch group metadata by invite code (for join page) |
+| `POST` | `/groups/invite/:inviteCode/join` | None | Enter a name, receive a session token |
+| `GET` | `/groups/:id` | Session token | Fetch group name and invite code by stable ID (for settings page) |
 | `GET` | `/groups/:id/members` | Session token | List active members |
 | `DELETE` | `/groups/:id/members/:memberId` | Admin+ | Remove a member |
 | `POST` | `/groups/:id/expenses` | Session token | Add an expense with splits |
 | `GET` | `/groups/:id/expenses` | Session token | List all expenses |
 | `PATCH` | `/groups/:id/expenses/:expenseId` | Session token | Edit an expense (owner of expense or admin) |
 | `DELETE` | `/groups/:id/expenses/:expenseId` | Session token | Delete an expense (owner of expense or admin) |
-| `GET` | `/groups/:id/balances` | Session token | Compute and return net balances + settlement plan |
+| `GET` | `/groups/:id/balances` | Session token | Compute and return net balances + settlement plan. `Balance.netCents` and `Settlement.amount` are **integer cents**. Intentionally includes ghost members (those who left) so the ledger stays accurate after someone leaves. |
 | `PATCH` | `/groups/:id/settings` | Owner | Update group name, invite link |
+| `GET` | `/groups/:id/activity` | Session token | Fetch activity log (ownership transfers, etc.) — returns the 50 most recent entries, no pagination |
 
 **Auth model:** Session token passed as an httpOnly cookie. Middleware resolves the token to a `Member` record and attaches it to the request context. Permission checks (role enforcement) happen in route handlers, not the UI.
 
@@ -236,9 +257,9 @@ REST API served via Fastify. All routes are prefixed `/api/v1`. OpenAPI docs aut
 
 - **Invite codes** are generated with `crypto.randomBytes(6).toString('base64url')` (Node built-in, no dependencies) — ~48 bits of entropy, brute-force resistant at the given rate limits. Not UUIDs in the URL — shorter and cleaner.
 - **Rate limiting** on group joins to prevent brute-force link guessing
-- **Group expiration:** Groups expire 90 days after the last expense was added (activity-based, not creation-based). Expired groups become read-only (balances visible, no new expenses). Data is soft-deleted 30 days after expiration. No "never expires" toggle — adds settings UI complexity not worth the v1 investment.
+- **Group expiration:** Groups expire 90 days after the last expense was added (activity-based, not creation-based). Expired groups reject all write operations (`POST /expenses`, `POST .../join`, etc.) with `410 Gone`; read endpoints (`GET /balances`, `GET /expenses`) continue to work. Data is soft-deleted 30 days after expiration (v2 — not yet implemented). No "never expires" toggle — adds settings UI complexity not worth the v1 investment.
 - **No sensitive data in URLs** — the invite code maps to a group, but session tokens are never in the URL
-- **Abuse mitigation:** Max 50 members per group, max $10,000 per individual expense, rate limit of 30 expense submissions per hour per member. No reporting mechanism in v1 — group owner can remove bad actors.
+- **Abuse mitigation:** Max 50 members per group, max $10,000 per individual expense. Rate limits: global 100 requests/minute per IP; 30 expense submissions/hour per member; 10 group joins/minute per IP. No reporting mechanism in v1 — group owner can remove bad actors.
 
 ---
 
@@ -251,7 +272,7 @@ Three roles, enforced server-side:
 - Manage group settings (name, expiration, invite link regeneration)
 - Promote members to admin, demote admins back to member
 - Cannot be removed from the group
-- **Ownership recovery:** If the owner loses their session token (new device, cleared storage), any existing admin can claim ownership via a settings action. If there are no admins, ownership automatically transfers to the earliest-joined active member — triggered lazily the next time an owner-level action is attempted (not immediately, to avoid unnecessary promotions). The transfer is recorded as a group activity feed entry visible alongside expense history (e.g., "Alice is now the group owner") so members are aware of the change without a separate notification system.
+- **Ownership recovery:** If the owner loses their session token (new device, cleared storage), ownership automatically transfers to the first available admin, or if no admins exist, to the earliest-joined active member — triggered lazily the next time an owner-level action is attempted (not immediately, to avoid unnecessary promotions). There is no manual claim action; the transfer happens automatically and silently. The transfer is recorded as a group activity feed entry (e.g., "Alice is now the group owner") so members are aware of the change without a separate notification system.
 
 **Admin** (promoted by the owner):
 - Add and remove members
@@ -269,9 +290,11 @@ Three roles, enforced server-side:
 
 ## Real-Time Updates
 
-**v1: Polling** // is polling the same as useState or useMutation in trpc proc?
-- Dashboard polls for balance updates every 10-15 seconds using the [Page Visibility API](https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API) to pause polling when the tab is hidden
-- Simple, reliable, works with Lambda's request-response model. Polling means the client asks the server "anything new?" on a repeating timer — every 10–15 seconds, the dashboard makes a `GET /balances` request and re-renders if anything changed. It's the simplest way to keep data fresh without a persistent connection. The Page Visibility API is a browser feature that tells you whether the tab is currently visible to the user; pausing the poll interval when the tab is hidden avoids wasting requests when nobody's looking at the screen.
+**v1: Polling via TanStack Query**
+- Dashboard polls all data (members, expenses, balances) every 12 seconds via TanStack Query's `refetchInterval`
+- `refetchIntervalInBackground: false` pauses polling when the tab is hidden — equivalent to the Page Visibility API behaviour, handled automatically by TanStack Query
+- `onlineManager` wired to the browser's native `online`/`offline` events pauses all queries when the device is offline — no wasted requests, no failed mutations queued up
+- Simple, reliable, works with Lambda's request-response model. Polling means the client asks the server "anything new?" on a repeating timer. For groups of 5–10 people, polling is indistinguishable from real-time.
 
 **v2: WebSockets**
 - Migrate to API Gateway WebSocket APIs for push-based updates
@@ -298,8 +321,7 @@ Three roles, enforced server-side:
 
 **Pipeline stages:**
 1. **On PR:** Lint (ESLint) → Unit tests → Integration tests → Build check
-2. **On merge to main:** Full test suite → Build → Deploy to staging
-3. **On release tag:** Deploy to production
+2. **On merge to main:** Full test suite → Build → Deploy to production
 
 **Deployment flow:**
 - Terraform applies infrastructure changes (manual approval gate for production)
@@ -319,12 +341,12 @@ Focus on making sure core functionality works, not chasing coverage numbers.
 **Tier 1 — Unit tests (debt simplification algorithm):**
 - This is the most testable and most important piece
 - Test cases: simple 2-person split, multi-person with uneven balances, edge cases (everyone owes equally, single person paid everything, zero-sum groups)
-- Framework: Jest
+- Framework: Vitest
 
 **Tier 2 — Integration tests (API endpoints):**
 - Test the critical API paths: create group, join group, add expense, get balances, delete expense
 - Verify permission enforcement (member can't delete someone else's expense, non-admin can't remove members)
-- Framework: Supertest + Jest against a test database
+- Framework: Supertest + Vitest against the Neon `tabby_test` database
 
 **Tier 3 — E2E tests (critical happy path):**
 - One or two flows: create group → share link → join → add expense → verify balances update
@@ -345,6 +367,7 @@ Focus on making sure core functionality works, not chasing coverage numbers.
 4. **Expense categories with spending breakdowns** (data viz, charting)
 5. **Settle-up flow with Venmo/Zelle deep links** (mobile deep linking patterns)
 6. **Export ledger to CSV** (simple but useful)
+7. **Scheduled data cleanup** — soft-delete expired group data 30 days after expiration via an EventBridge scheduled rule + Lambda function; currently groups become read-only after 90 days of inactivity but data persists indefinitely
 
 ---
 
@@ -355,5 +378,5 @@ Focus on making sure core functionality works, not chasing coverage numbers.
 - **Group expiration:** Activity-based (90 days from last expense), not creation-based. Simpler, better product behavior, removes the need for a "never expires" settings toggle.
 - **Financial arithmetic:** Integer cents internally, stored as `DECIMAL(10,2)` in PostgreSQL. Never `FLOAT` — avoids rounding errors for financial data.
 - **Abuse mitigation:** Simple caps for v1 — max 50 members per group, $10,000 per individual expense, 30 expense submissions per hour per member. No reporting UI — group owner can remove bad actors.
-- **Monitoring:** CloudWatch for backend (Lambda errors, API latency, RDS health — comes free with AWS) + Sentry free tier for frontend error tracking (~10 lines of React integration, 5K errors/month). Full-stack visibility without extra infrastructure.
+- **Monitoring:** CloudWatch for backend (Lambda errors, API latency — comes free with AWS) + Sentry free tier for frontend error tracking (~10 lines of React integration, 5K errors/month). Full-stack visibility without extra infrastructure.
 - **Domain:** CloudFront distribution URL for now. Custom domain is a nice-to-have for later if shipping to real users (SSL via ACM is free, just need to buy a domain).
