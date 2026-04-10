@@ -216,15 +216,16 @@ AWS is a deliberate learning goal — demonstrating cloud-native deployment patt
 
 - **Lambda + API Gateway:** Serverless API layer. Cold start mitigation via provisioned concurrency on critical paths (group creation, expense submission).
 - **Neon (serverless PostgreSQL):** Serverless Postgres accessed via Neon's HTTP driver (`@neondatabase/serverless`). Stateless by design — no connection pool configuration needed, no VPC required. Lambda connects over HTTPS on each invocation; the driver bundles into the Lambda zip with no native binaries. Eliminates the ~$13–15/mo RDS cost after the AWS free tier expires.
-- **S3 + CloudFront:** Static hosting for the React PWA. CloudFront for CDN and HTTPS.
+- **Cloudflare Pages:** Static hosting for the React PWA. Cloudflare Pages provides CDN, HTTPS, and SPA routing out of the box — with unlimited free bandwidth and no expiring free tier. Chosen over CloudFront + S3 because AWS's free tier expires after 12 months, and Cloudflare simplifies deployment to a single `wrangler pages deploy` command (no S3 sync + cache invalidation).
 - **Secrets management:** The Neon connection string and other secrets are stored in **AWS SSM Parameter Store** (free tier) and fetched at Lambda cold start, then cached in memory. Never passed as plain environment variables in production. SSM Parameter Store keeps secrets encrypted at rest, access-controlled via IAM, and auditable (you can see who fetched a secret and when). Lambda fetches the value once at cold start and holds it in memory for the lifetime of that instance — it's never written to logs and never appears in the Lambda configuration visible in the console.
-- **Infrastructure as Code:** Terraform — more portable than CDK/CloudFormation, widely adopted across the industry, and adds a non-AWS-specific skill to the resume. Terraform manages: Lambda function + IAM role, API Gateway (HTTP API), S3 bucket + CloudFront distribution + ACM certificate, SSM Parameter Store entries.
+- **Infrastructure as Code:** Terraform — more portable than CDK/CloudFormation, widely adopted across the industry, and adds a non-AWS-specific skill to the resume. State is stored in **Terraform Cloud** (free for up to 500 resources) — chosen over an S3 backend to eliminate another expiring AWS free tier dependency while gaining built-in state locking, versioning, and a UI for state inspection. Terraform manages: Lambda function + IAM role, API Gateway (HTTP API), SSM Parameter Store entries.
 
 **Architecture decisions to discuss in interviews:**
 - Lambda cold starts and why Neon's HTTP driver eliminates the connection pool problem entirely (no VPC, no pool config, stateless per invocation)
 - Why Neon over RDS: serverless billing, no VPC overhead, same PostgreSQL semantics, permanently free at this scale
 - Why relational (PostgreSQL) over DynamoDB despite being on AWS (data model fit > vendor alignment)
-- CloudFront cache invalidation strategy for PWA updates
+- Why Cloudflare Pages over CloudFront + S3 (no expiring free tier, simpler deploy pipeline)
+- Why Terraform Cloud over S3 backend (free state locking, no DynamoDB table, no expiring free tier)
 - Why SSM Parameter Store over environment variables for secrets (rotation, audit trail, no accidental logging)
 
 ---
@@ -326,7 +327,7 @@ Three roles, enforced server-side:
 **Deployment flow:**
 - Terraform applies infrastructure changes (manual approval gate for production)
 - Lambda functions packaged and deployed via GitHub Actions + AWS CLI
-- React PWA built, uploaded to S3, CloudFront cache invalidated
+- React PWA built and deployed to Cloudflare Pages via `wrangler pages deploy`
 
 **Why this matters:** Demonstrates end-to-end ownership — not just writing code, but shipping it safely with automated quality gates.
 
@@ -379,4 +380,4 @@ Focus on making sure core functionality works, not chasing coverage numbers.
 - **Financial arithmetic:** Integer cents internally, stored as `DECIMAL(10,2)` in PostgreSQL. Never `FLOAT` — avoids rounding errors for financial data.
 - **Abuse mitigation:** Simple caps for v1 — max 50 members per group, $10,000 per individual expense, 30 expense submissions per hour per member. No reporting UI — group owner can remove bad actors.
 - **Monitoring:** CloudWatch for backend (Lambda errors, API latency — comes free with AWS) + Sentry free tier for frontend error tracking (~10 lines of React integration, 5K errors/month). Full-stack visibility without extra infrastructure.
-- **Domain:** CloudFront distribution URL for now. Custom domain is a nice-to-have for later if shipping to real users (SSL via ACM is free, just need to buy a domain).
+- **Domain:** Cloudflare Pages URL (`https://tabby.pages.dev`) for now. Custom domain is a nice-to-have for later — Cloudflare Pages supports free custom domains with automatic HTTPS, no ACM certificate needed.

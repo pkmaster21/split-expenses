@@ -1,8 +1,24 @@
-variable "prefix" { type = string }
-variable "tags" { type = map(string) }
-variable "database_url" { type = string; sensitive = true }
-variable "cookie_secret" { type = string; sensitive = true }
-variable "cors_origin" { type = string }
+variable "prefix" {
+  type = string
+}
+
+variable "tags" {
+  type = map(string)
+}
+
+variable "database_url" {
+  type      = string
+  sensitive = true
+}
+
+variable "cookie_secret" {
+  type      = string
+  sensitive = true
+}
+
+variable "cors_origin" {
+  type = string
+}
 
 resource "aws_ssm_parameter" "database_url" {
   name        = "/${var.prefix}/DATABASE_URL"

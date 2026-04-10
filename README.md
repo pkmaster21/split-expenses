@@ -18,8 +18,8 @@ Built as a portfolio project demonstrating full-stack TypeScript, AWS cloud-nati
 | Frontend | React 18 + TypeScript + Tailwind CSS + TanStack Query (PWA) |
 | Backend | Fastify 5 + TypeScript |
 | Database | PostgreSQL via Neon (serverless) + Drizzle ORM |
-| Hosting | AWS Lambda + API Gateway + S3 + CloudFront |
-| IaC | Terraform |
+| Hosting | AWS Lambda + API Gateway (backend) + Cloudflare Pages (frontend) |
+| IaC | Terraform + Terraform Cloud |
 | CI/CD | GitHub Actions |
 | Monitoring | CloudWatch (backend) + Sentry (frontend) |
 
@@ -40,7 +40,7 @@ Built as a portfolio project demonstrating full-stack TypeScript, AWS cloud-nati
 ```
 Browser (React PWA)
     │  serves via
-CloudFront + S3
+Cloudflare Pages
     │
     └─ /api/v1/*  → API Gateway (HTTP API)
                          │
@@ -160,14 +160,14 @@ All routes prefixed `/api/v1`. OpenAPI docs at `/docs` when running locally.
 
 - **Lambda cold starts:** Neon HTTP driver (`@neondatabase/serverless`) is stateless — no connection pool config, no VPC required. Each Lambda invocation connects to Neon over HTTPS.
 - **Secrets:** Neon connection string and cookie secret stored in SSM Parameter Store as `SecureString`, fetched once at cold start and cached in memory.
-- **CDN strategy:** CloudFront with long TTL on hashed JS/CSS assets, zero TTL on `index.html` for instant PWA updates.
+- **CDN strategy:** Cloudflare Pages handles CDN, HTTPS, and SPA routing automatically — no cache invalidation step needed.
 
 ## CI/CD Pipeline
 
 | Trigger | Jobs |
 |---------|------|
-| PR to main | Lint → TypeScript → Unit tests → Integration tests → Build check |
-| `v*` tag | Full test suite → Terraform plan + apply (manual approval gate) → Lambda deploy → S3 sync → CF invalidation |
+| PR | Lint, TypeScript, Unit tests, Integration tests, Build check (parallel) |
+| `v*` tag | Full test suite → Terraform plan + apply (manual approval gate) → Lambda deploy → Cloudflare Pages deploy |
 
 ## License
 

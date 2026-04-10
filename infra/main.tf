@@ -6,19 +6,16 @@ terraform {
       version = "~> 5.0"
     }
   }
-  backend "s3" {
-    key    = "tabby/terraform.tfstate"
-    region = "us-east-1"
+  cloud {
+    organization = "dzhao-projects"
+    workspaces {
+      name = "tabby-workspace"
+    }
   }
 }
 
 provider "aws" {
   region = var.aws_region
-}
-
-provider "aws" {
-  alias  = "us_east_1"
-  region = "us-east-1"
 }
 
 locals {
@@ -55,9 +52,3 @@ module "api_gateway" {
   lambda_name = module.lambda.function_name
 }
 
-module "cloudfront" {
-  source    = "./modules/cloudfront"
-  prefix    = local.prefix
-  tags      = local.tags
-  providers = { aws.us_east_1 = aws.us_east_1 }
-}

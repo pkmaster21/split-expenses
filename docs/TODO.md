@@ -8,11 +8,11 @@ These steps get the app running on your machine.
 
 #### Neon Database
 
-- [ ] Create a free account at https://neon.tech
-- [ ] Create a new project (region: us-east-1)
-- [ ] Create two databases inside the project: `tabby_prod` and `tabby_test`
-- [ ] Add `DATABASE_URL` to `packages/api/.env` (pointing at `tabby_test`)
-- [ ] Run `cd packages/api && npx drizzle-kit push --force` to create tables in the test database
+- [x] Create a free account at https://neon.tech
+- [x] Create a new project (region: us-east-1)
+- [x] Create two databases inside the project: `tabby_prod` and `tabby_test`
+- [x] Add `DATABASE_URL` to `packages/api/.env` (pointing at `tabby_test`)
+- [x] Run `cd packages/api && npx drizzle-kit push --force` to create tables in the test database
 
 ---
 
@@ -24,42 +24,31 @@ These steps require manual action outside the codebase to get the app deployed.
 
 Go to **Settings → Secrets and variables → Actions** and add:
 
-- [ ] `AWS_ACCESS_KEY_ID`
-- [ ] `AWS_SECRET_ACCESS_KEY`
-- [ ] `TF_STATE_BUCKET` — S3 bucket name for Terraform remote state
-- [ ] `PROD_DATABASE_URL` — full Neon connection string for the `tabby_prod` production database
-- [ ] `COOKIE_SECRET` — long random string (`openssl rand -base64 32`)
-- [ ] `PROD_API_URL` — API Gateway URL (from Terraform output after first apply)
-- [ ] `PROD_CF_DISTRIBUTION_ID` — CloudFront distribution ID (from Terraform output)
-- [ ] `PROD_CORS_ORIGIN` — CloudFront URL or custom domain for prod
+- [x] `AWS_ACCESS_KEY_ID`
+- [x] `AWS_SECRET_ACCESS_KEY`
+- [x] `DATABASE_URL` — full Neon connection string for the `tabby_test` database (used by integration tests in CI)
+- [x] `PROD_DATABASE_URL` — full Neon connection string for the `tabby_prod` production database
+- [x] `COOKIE_SECRET` — long random string (`openssl rand -base64 32`)
+- [x] `PROD_API_GATEWAY_URL` — API Gateway URL (from Terraform output after first apply)
+- [x] `CLOUDFLARE_API_TOKEN` — Cloudflare API token with `Pages:Edit` permission
+- [x] `CLOUDFLARE_ACCOUNT_ID` — from Cloudflare dashboard
+- [x] `TF_API_TOKEN` — from Terraform Cloud → User Settings → Tokens
+- [x] `PROD_CORS_ORIGIN` — Cloudflare Pages URL (e.g. `https://tabby.pages.dev`) or custom domain
 - [ ] `SENTRY_DSN` — from Sentry.io project settings (optional)
 
 #### GitHub Environments
 
-- [ ] Create `production` environment with required reviewers to gate the Terraform apply
+- [x] Create `production` environment with required reviewers to gate the Terraform apply
+
+#### Migration Prerequisite
+
+- [ ] Complete the CloudFront → Cloudflare migration — see [TODO-migration.md](TODO-migration.md)
 
 #### First Terraform Apply
 
-- [ ] Create an S3 bucket for Terraform remote state; enable versioning
-- [ ] Run locally once to provision infrastructure:
-  ```bash
-  cd infra
-  terraform init -backend-config="bucket=<your-tf-state-bucket>"
-  terraform apply \
-    -var="neon_database_url=<your-neon-url>" \
-    -var="cookie_secret=<random-secret>" \
-    -var="cors_origin=https://placeholder.cloudfront.net"
-  ```
-- [ ] Note `api_gateway_url` and `cloudfront_url` from Terraform outputs
-- [ ] Update `PROD_API_URL`, `PROD_CORS_ORIGIN`, and `PROD_CF_DISTRIBUTION_ID` secrets
-- [ ] Re-run apply with the correct `cors_origin`
-
-#### Domain & HTTPS (Optional)
-
-- [ ] Purchase a domain via Route 53 or any registrar
-- [ ] Request ACM certificate in us-east-1 for the domain
-- [ ] Add ACM ARN to the CloudFront Terraform config
-- [ ] Create a Route 53 A alias record pointing to the CloudFront distribution
+- [x] Infrastructure provisioned and state imported into Terraform Cloud
+- [x] `api_gateway_url`: `https://fv2ywhx3oa.execute-api.us-east-1.amazonaws.com/`
+- [x] Variables configured in Terraform Cloud workspace (`tabby-workspace`)
 
 #### Sentry (Optional)
 
@@ -94,5 +83,5 @@ Go to **Settings → Secrets and variables → Actions** and add:
 
 #### Infrastructure
 
-- [ ] **Terraform state locking** — add a DynamoDB table for state locking (`dynamodb_table` in the S3 backend config) to prevent concurrent apply conflicts if more than one person ever deploys
+- [x] **Terraform state locking** — handled automatically by Terraform Cloud (migrated from S3 backend)
 - [ ] **Lambda provisioned concurrency** — optional; eliminates cold-start latency on the first request after inactivity; set to 1 on the production alias once traffic justifies it
