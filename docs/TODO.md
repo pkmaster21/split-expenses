@@ -2,19 +2,23 @@
 
 ---
 
-### Manual Setup — Things to Do Before the App Goes Live
+### Local Development Setup
 
-These steps require manual action outside the codebase.
+These steps get the app running on your machine.
 
 #### Neon Database
 
 - [ ] Create a free account at https://neon.tech
 - [ ] Create a new project (region: us-east-1)
-- [ ] Create two databases inside the project: `tabby` and `tabby_test`
-- [ ] Add `DATABASE_URL` to `packages/api/.env` (pointing at `tabby`)
-- [ ] Add `TEST_DATABASE_URL` to `packages/api/.env` (pointing at `tabby_test`)
-- [ ] Run `cd packages/api && npx drizzle-kit push` to create tables in the dev database
-- [ ] Run `DATABASE_URL=$TEST_DATABASE_URL npx drizzle-kit push --force` to create tables in the test database
+- [ ] Create two databases inside the project: `tabby_prod` and `tabby_test`
+- [ ] Add `DATABASE_URL` to `packages/api/.env` (pointing at `tabby_test`)
+- [ ] Run `cd packages/api && npx drizzle-kit push --force` to create tables in the test database
+
+---
+
+### Production Setup
+
+These steps require manual action outside the codebase to get the app deployed.
 
 #### GitHub Repository Secrets
 
@@ -23,8 +27,7 @@ Go to **Settings → Secrets and variables → Actions** and add:
 - [ ] `AWS_ACCESS_KEY_ID`
 - [ ] `AWS_SECRET_ACCESS_KEY`
 - [ ] `TF_STATE_BUCKET` — S3 bucket name for Terraform remote state
-- [ ] `NEON_DATABASE_URL` — full Neon connection string for the `tabby` production database
-- [ ] `TEST_DATABASE_URL` — full Neon connection string for the `tabby_test` database
+- [ ] `PROD_DATABASE_URL` — full Neon connection string for the `tabby_prod` production database
 - [ ] `COOKIE_SECRET` — long random string (`openssl rand -base64 32`)
 - [ ] `PROD_API_URL` — API Gateway URL (from Terraform output after first apply)
 - [ ] `PROD_CF_DISTRIBUTION_ID` — CloudFront distribution ID (from Terraform output)
@@ -79,7 +82,7 @@ Go to **Settings → Secrets and variables → Actions** and add:
 - [ ] **Rate limit test** — 31st expense within an hour should return 429 (currently untested)
 - [ ] **Expense edit test** — add integration test for `PATCH /groups/:id/expenses/:expenseId` (endpoint exists but has no test)
 - [ ] **Group expiration test** — verify that posting to an expired group returns 410 (logic exists, untested)
-- [ ] **Permission enforcement tests** — member cannot remove another member (should 403); member cannot delete someone else's expense (should 403)
+- [x] **Permission enforcement tests** — member cannot remove another member (should 403); member cannot delete someone else's expense (should 403) *(covered in `api.test.ts`)*
 
 #### Developer Experience
 

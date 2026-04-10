@@ -84,7 +84,7 @@ export async function expenseRoutes(fastify: FastifyInstance) {
           id: expenseId,
           groupId: id,
           paidBy: request.member!.id,
-          amount: String(body.amount),
+          amount: String(totalCents / 100),
           description: body.description,
           splitType: body.splitType,
         }).returning(),
@@ -203,11 +203,25 @@ export async function expenseRoutes(fastify: FastifyInstance) {
       }
 
       const splitType = body.splitType ?? expense.splitType;
-      const memberIds = body.memberIds;
+      let memberIds = body.memberIds;
+
+      // If amount or splitType changed, splits must be recalculated even when
+      // memberIds wasn't explicitly provided — otherwise the stored splits
+      // become stale and the ledger is wrong.
+      const needsSplitRecalc = memberIds || body.amount !== undefined || body.splitType !== undefined;
 
       let result: (typeof expense) & { splits: { id: string; expenseId: string; memberId: string; amount: string }[] };
 
-      if (memberIds) {
+      if (needsSplitRecalc) {
+        // If caller didn't provide memberIds, use the existing split participants
+        if (!memberIds) {
+          const existingSplits = await db
+            .select({ memberId: expenseSplits.memberId })
+            .from(expenseSplits)
+            .where(eq(expenseSplits.expenseId, expenseId));
+          memberIds = existingSplits.map((s) => s.memberId);
+        }
+
         const activeMemberRows = await db
           .select({ id: members.id })
           .from(members)
@@ -227,7 +241,7 @@ export async function expenseRoutes(fastify: FastifyInstance) {
           db.delete(expenseSplits).where(eq(expenseSplits.expenseId, expenseId)),
           db.update(expenses).set({
             description: body.description,
-            amount: body.amount !== undefined ? String(body.amount) : undefined,
+            amount: String(totalCents / 100),
             splitType,
             updatedAt: new Date(),
           }).where(eq(expenses.id, expenseId)).returning(),
@@ -243,12 +257,11 @@ export async function expenseRoutes(fastify: FastifyInstance) {
         const splitsRows = batchResult[2];
         result = { ...updatedRows[0]!, splits: splitsRows };
       } else {
+        // Only description changed — no split recalculation needed
         const [updated] = await db
           .update(expenses)
           .set({
             description: body.description,
-            amount: body.amount !== undefined ? String(body.amount) : undefined,
-            splitType,
             updatedAt: new Date(),
           })
           .where(eq(expenses.id, expenseId))

@@ -9,8 +9,6 @@ import {
   requireGroupMember,
   requireAdmin,
 } from '../plugins/session.js';
-import { ensureOwnerExists } from '../services/ownership.js';
-
 function generateSessionToken(): string {
   return randomBytes(32).toString('base64url');
 }
@@ -56,7 +54,7 @@ export async function memberRoutes(fastify: FastifyInstance) {
         .select({ memberCount: count() })
         .from(members)
         .where(and(eq(members.groupId, group.id), isNull(members.leftAt)));
-      const memberCount = countRow?.memberCount ?? 0;
+      const memberCount = Number(countRow?.memberCount ?? 0);
 
       if (memberCount >= 50) {
         return reply.status(409).send({ error: 'Group is full (max 50 members)' });
@@ -79,7 +77,7 @@ export async function memberRoutes(fastify: FastifyInstance) {
         httpOnly: true,
         path: '/',
         sameSite: 'lax',
-        secure: process.env['NODE_ENV'] === 'production',
+        secure: process.env['NODE_ENV'] === 'prod',
         maxAge: 60 * 60 * 24 * 365,
       });
 
@@ -157,8 +155,6 @@ export async function memberRoutes(fastify: FastifyInstance) {
         groupId: id,
         message: `${target.displayName} was removed from the group`,
       });
-
-      await ensureOwnerExists(id);
 
       return reply.status(204).send();
     },

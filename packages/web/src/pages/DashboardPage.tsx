@@ -57,6 +57,20 @@ export default function DashboardPage() {
   const expenses: Expense[] = expensesQuery.data ?? [];
   const balances: BalancesResponse | null = balancesQuery.data ?? null;
 
+  // Build a name map that includes ghost (soft-deleted) members from the
+  // balances response — active members alone won't cover settlement participants
+  // who left the group with outstanding debts.
+  const memberNames = new Map<string, string>(
+    members.map((m) => [m.id, m.displayName]),
+  );
+  if (balances) {
+    for (const b of balances.balances) {
+      if (!memberNames.has(b.memberId)) {
+        memberNames.set(b.memberId, b.displayName);
+      }
+    }
+  }
+
   // Derive current member from query data — no separate useState needed
   const storedId = localStorage.getItem(`member_hint_${id}`);
   const currentMember = members.find((m) => m.id === storedId) ?? null;
@@ -188,7 +202,7 @@ export default function DashboardPage() {
 
             <div className="space-y-2">
               {expenses.map((exp) => {
-                const payer = members.find((m) => m.id === exp.paidBy);
+                const payerName = memberNames.get(exp.paidBy) ?? 'Unknown';
                 const canEdit =
                   currentMember &&
                   (exp.paidBy === currentMember.id ||
@@ -200,7 +214,7 @@ export default function DashboardPage() {
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-gray-900 truncate">{exp.description}</p>
                         <p className="text-xs text-gray-500 mt-0.5">
-                          {payer?.displayName ?? 'Unknown'} paid · {fmtDate(exp.createdAt)} ·{' '}
+                          {payerName} paid · {fmtDate(exp.createdAt)} ·{' '}
                           <Badge variant="gray">{exp.splitType}</Badge>
                         </p>
                       </div>
@@ -251,15 +265,15 @@ export default function DashboardPage() {
                 <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider pt-2">Settlement plan</h2>
                 <div className="space-y-2">
                   {balances.settlements.map((s) => {
-                    const from = members.find((m) => m.id === s.from);
-                    const to = members.find((m) => m.id === s.to);
+                    const fromName = memberNames.get(s.from) ?? 'Unknown';
+                    const toName = memberNames.get(s.to) ?? 'Unknown';
                     return (
                       <div key={`${s.from}-${s.to}`} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center gap-3">
-                        <Avatar name={from?.displayName ?? '?'} size="sm" />
+                        <Avatar name={fromName} size="sm" />
                         <span className="text-sm text-gray-700 flex-1">
-                          <span className="font-medium">{from?.displayName ?? 'Unknown'}</span>
+                          <span className="font-medium">{fromName}</span>
                           {' pays '}
-                          <span className="font-medium">{to?.displayName ?? 'Unknown'}</span>
+                          <span className="font-medium">{toName}</span>
                         </span>
                         <span className="font-semibold text-gray-900">${(s.amountCents / 100).toFixed(2)}</span>
                       </div>
@@ -283,7 +297,7 @@ export default function DashboardPage() {
           onClose={() => setShowAddExpense(false)}
           members={members}
           currentMemberId={currentMember.id}
-          onSave={(data) => addExpenseMutation.mutateAsync(data).then(() => setShowAddExpense(false))}
+          onSave={async (data) => { await addExpenseMutation.mutateAsync(data); }}
         />
       )}
     </div>

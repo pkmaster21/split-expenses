@@ -4,6 +4,7 @@ import { createHash } from 'crypto';
 import { db, members } from '../db/index.js';
 import type { Member } from '../db/schema.js';
 import { eq, isNull, and } from 'drizzle-orm';
+import { ensureOwnerExists } from '../services/ownership.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -79,6 +80,18 @@ export async function requireOwner(request: FastifyRequest, reply: FastifyReply)
     return;
   }
   if (request.member.role !== 'owner') {
+    // Lazy ownership recovery: if the group has no active owner (e.g. the
+    // original owner lost their session), promote the first admin or earliest
+    // member and re-check whether this requester was promoted.
+    await ensureOwnerExists(id);
+    const [refreshed] = await db
+      .select()
+      .from(members)
+      .where(and(eq(members.id, request.member.id), isNull(members.leftAt)));
+    if (refreshed?.role === 'owner') {
+      request.member = refreshed;
+      return;
+    }
     await reply.status(403).send({ error: 'Owner access required' });
     return;
   }
