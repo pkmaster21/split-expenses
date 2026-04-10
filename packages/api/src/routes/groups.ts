@@ -55,7 +55,7 @@ export async function groupRoutes(fastify: FastifyInstance) {
         httpOnly: true,
         path: '/',
         sameSite: 'lax',
-        secure: process.env['NODE_ENV'] === 'production',
+        secure: process.env['NODE_ENV'] === 'prod',
         maxAge: 60 * 60 * 24 * 365,
       });
 
@@ -98,7 +98,7 @@ export async function groupRoutes(fastify: FastifyInstance) {
         .from(members)
         .where(and(eq(members.groupId, group.id), isNull(members.leftAt)));
 
-      return reply.send({ ...group, memberCount: countRow?.memberCount ?? 0 });
+      return reply.send({ ...group, memberCount: Number(countRow?.memberCount ?? 0) });
     },
   );
 

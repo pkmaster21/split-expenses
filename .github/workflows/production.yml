@@ -19,23 +19,23 @@ jobs:
       group: integration-tests
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run build --workspace=packages/shared
-      - name: Migrate test DB
+      - name: Push schema to test DB
         working-directory: packages/api
-        run: npx drizzle-kit migrate
+        run: npx drizzle-kit push --force
         env:
-          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
       - name: Run all tests
         working-directory: packages/api
         run: npx vitest run --reporter=verbose
         env:
-          TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
   terraform-plan:
     name: Terraform Plan
@@ -43,7 +43,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.6.0
@@ -60,7 +60,7 @@ jobs:
         run: |
           terraform plan -out=tfplan \
             -var="environment=prod" \
-            -var="neon_database_url=${{ secrets.NEON_DATABASE_URL }}" \
+            -var="neon_database_url=${{ secrets.PROD_DATABASE_URL }}" \
             -var="cookie_secret=${{ secrets.COOKIE_SECRET }}" \
             -var="cors_origin=${{ secrets.PROD_CORS_ORIGIN }}"
       - name: Upload plan artifact
@@ -76,7 +76,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.6.0
@@ -103,8 +103,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -123,7 +123,7 @@ jobs:
         working-directory: packages/api
         run: npx drizzle-kit migrate
         env:
-          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
 
       - name: Build Lambda package
         working-directory: packages/api

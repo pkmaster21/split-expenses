@@ -5,7 +5,7 @@ export async function loadConfig(): Promise<void> {
   loaded = true;
 
   const ssmPathPrefix = process.env['SSM_PATH_PREFIX'];
-  if (!ssmPathPrefix || process.env['NODE_ENV'] !== 'production') return;
+  if (!ssmPathPrefix || process.env['NODE_ENV'] !== 'prod') return;
 
   try {
     const { SSMClient, GetParametersByPathCommand } = await import('@aws-sdk/client-ssm');

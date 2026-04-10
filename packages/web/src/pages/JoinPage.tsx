@@ -76,7 +76,7 @@ export default function JoinPage() {
 
         {expired ? (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
-            This group has expired. You can view balances but cannot add expenses.
+            This group has expired and is no longer accepting new members.
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">

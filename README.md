@@ -67,9 +67,9 @@ split-expenses/
 ### Prerequisites
 
 - Node.js 22+
-- A [Neon](https://neon.tech) account with two databases: `tabby` (dev) and `tabby_test` (test)
+- A [Neon](https://neon.tech) account with two databases: `tabby_prod` (production) and `tabby_test` (dev/test)
 
-### Setup
+### First-Time Setup
 
 ```bash
 # Install dependencies
@@ -84,8 +84,12 @@ cp packages/web/.env.example packages/web/.env
 
 # Push schema to your Neon dev database
 cd packages/api && npx drizzle-kit push
+```
 
-# Start API (port 3001)
+### Start Dev Servers
+
+```bash
+# Start API (port 3000)
 npm run dev --workspace=packages/api
 
 # Start web (port 5173)
@@ -97,11 +101,11 @@ npm run dev --workspace=packages/web
 Integration tests run against the Neon `tabby_test` database — no local database service required.
 
 ```bash
-# Ensure TEST_DATABASE_URL is set in packages/api/.env, then:
+# Ensure DATABASE_URL is set in packages/api/.env, then:
 cd packages/api
 
 # Push schema to test DB (safe to run repeatedly)
-DATABASE_URL=$TEST_DATABASE_URL npx drizzle-kit push --force
+npx drizzle-kit push --force
 
 # Unit + integration tests
 npx vitest run
