@@ -40,10 +40,6 @@ Go to **Settings → Secrets and variables → Actions** and add:
 
 - [x] Create `production` environment with required reviewers to gate the Terraform apply
 
-#### Migration Prerequisite
-
-- [ ] Complete the CloudFront → Cloudflare migration — see [TODO-migration.md](TODO-migration.md)
-
 #### First Terraform Apply
 
 - [x] Infrastructure provisioned and state imported into Terraform Cloud
