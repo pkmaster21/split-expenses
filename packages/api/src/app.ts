@@ -29,26 +29,28 @@ export async function buildApp() {
     timeWindow: '1 minute',
   });
 
-  await fastify.register(swagger, {
-    openapi: {
-      info: {
-        title: 'Tabby API',
-        version: '1.0.0',
-        description: 'No-auth expense splitting API',
+  if (process.env['NODE_ENV'] !== 'prod') {
+    await fastify.register(swagger, {
+      openapi: {
+        info: {
+          title: 'Tabby API',
+          version: '1.0.0',
+          description: 'No-auth expense splitting API',
+        },
+        tags: [
+          { name: 'groups', description: 'Group operations' },
+          { name: 'members', description: 'Member operations' },
+          { name: 'expenses', description: 'Expense operations' },
+          { name: 'balances', description: 'Balance and settlement operations' },
+        ],
       },
-      tags: [
-        { name: 'groups', description: 'Group operations' },
-        { name: 'members', description: 'Member operations' },
-        { name: 'expenses', description: 'Expense operations' },
-        { name: 'balances', description: 'Balance and settlement operations' },
-      ],
-    },
-  });
+    });
 
-  await fastify.register(swaggerUi, {
-    routePrefix: '/docs',
-    uiConfig: { docExpansion: 'list' },
-  });
+    await fastify.register(swaggerUi, {
+      routePrefix: '/docs',
+      uiConfig: { docExpansion: 'list' },
+    });
+  }
 
   await fastify.register(sessionPlugin);
 
