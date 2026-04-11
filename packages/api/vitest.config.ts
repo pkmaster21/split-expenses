@@ -9,8 +9,8 @@ export default defineConfig({
       tsconfig: './tsconfig.test.json',
     },
     environment: 'node',
-    include: ['src/__tests__/**/*.test.ts'],
-    setupFiles: ['src/__tests__/setup.ts'],
+    include: ['src/tests/**/*.test.ts'],
+    setupFiles: ['src/tests/setup.ts'],
     alias: {
       '@tabby/shared': path.resolve(__dirname, '../shared/src/index.ts'),
     },

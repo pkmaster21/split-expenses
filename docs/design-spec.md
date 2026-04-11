@@ -321,7 +321,7 @@ Three roles, enforced server-side:
 **GitHub Actions** — a learning goal in itself, and the industry default for open-source and small-team projects.
 
 **Pipeline stages:**
-1. **On PR:** Lint (ESLint) → Unit tests → Integration tests → Build check
+1. **On PR:** Lint (ESLint) → Unit tests → Integration tests → Schema drift check → Build check
 2. **On merge to main:** Full test suite → Build → Deploy to production
 
 **Deployment flow:**

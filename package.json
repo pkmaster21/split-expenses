@@ -10,6 +10,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "eslint packages --ext .ts,.tsx",
     "format": "prettier --write \"packages/**/*.{ts,tsx,json}\"",
+    "dev": "npm run dev --workspace=packages/api & npm run dev --workspace=packages/web",
     "test": "npm run test --workspaces --if-present"
   },
   "devDependencies": {

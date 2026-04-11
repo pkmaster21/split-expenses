@@ -89,11 +89,8 @@ cd packages/api && npx drizzle-kit push
 ### Start Dev Servers
 
 ```bash
-# Start API (port 3000)
-npm run dev --workspace=packages/api
-
-# Start web (port 5173)
-npm run dev --workspace=packages/web
+# Start both API (port 3000) and web (port 5173)
+npm run dev
 ```
 
 ### Running Tests

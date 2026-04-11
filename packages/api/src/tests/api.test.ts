@@ -385,3 +385,157 @@ describe('DELETE /api/v1/groups/:id/members/:memberId', () => {
     expect(res.statusCode).toBe(204);
   });
 });
+
+describe('Second user (joiner) authenticated access', () => {
+  async function createGroupWithBob() {
+    const { group, member: alice, cookie: aliceCookie } = await createGroup();
+    // Insert Bob directly in the DB to avoid rate-limit on the join endpoint.
+    // Use a known raw token so we can build a valid session cookie.
+    const { hashToken } = await import('../plugins/session.js');
+    const bobRawToken = 'test-bob-raw-token';
+    const [bob] = await db
+      .insert(members)
+      .values({
+        groupId: group.id,
+        displayName: 'Bob',
+        role: 'member',
+        sessionToken: hashToken(bobRawToken),
+      })
+      .returning();
+    const bobCookie = `session_token=${bobRawToken}`;
+    return { group, alice, aliceCookie, bob: bob!, bobCookie };
+  }
+
+  it('second user can access all authenticated endpoints with their session cookie', async () => {
+    const { group, alice, bob, bobCookie } = await createGroupWithBob();
+
+    // GET /members
+    const membersRes = await app.inject({
+      method: 'GET',
+      url: `/api/v1/groups/${group.id}/members`,
+      headers: { cookie: bobCookie },
+    });
+    expect(membersRes.statusCode).toBe(200);
+    expect(membersRes.json<{ id: string }[]>()).toHaveLength(2);
+
+    // GET /expenses
+    const expensesRes = await app.inject({
+      method: 'GET',
+      url: `/api/v1/groups/${group.id}/expenses`,
+      headers: { cookie: bobCookie },
+    });
+    expect(expensesRes.statusCode).toBe(200);
+
+    // GET /balances
+    const balancesRes = await app.inject({
+      method: 'GET',
+      url: `/api/v1/groups/${group.id}/balances`,
+      headers: { cookie: bobCookie },
+    });
+    expect(balancesRes.statusCode).toBe(200);
+
+    // POST /expenses (Bob adds an expense)
+    const addExpenseRes = await app.inject({
+      method: 'POST',
+      url: `/api/v1/groups/${group.id}/expenses`,
+      headers: { cookie: bobCookie },
+      payload: {
+        description: 'Lunch',
+        amount: 20,
+        splitType: 'equal',
+        memberIds: [alice.id, bob.id],
+      },
+    });
+    expect(addExpenseRes.statusCode).toBe(201);
+    const expense = addExpenseRes.json<{ id: string }>();
+
+    // DELETE /expenses/:id (Bob deletes own expense)
+    const delExpenseRes = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/groups/${group.id}/expenses/${expense.id}`,
+      headers: { cookie: bobCookie },
+    });
+    expect(delExpenseRes.statusCode).toBe(204);
+
+    // GET /activity
+    const activityRes = await app.inject({
+      method: 'GET',
+      url: `/api/v1/groups/${group.id}/activity`,
+      headers: { cookie: bobCookie },
+    });
+    expect(activityRes.statusCode).toBe(200);
+
+    // GET /groups/:id (group details)
+    const groupRes = await app.inject({
+      method: 'GET',
+      url: `/api/v1/groups/${group.id}`,
+      headers: { cookie: bobCookie },
+    });
+    expect(groupRes.statusCode).toBe(200);
+  });
+
+  it('unauthenticated requests return 401', async () => {
+    const { group } = await createGroup();
+
+    const endpoints = [
+      { method: 'GET' as const, url: `/api/v1/groups/${group.id}/members` },
+      { method: 'GET' as const, url: `/api/v1/groups/${group.id}/expenses` },
+      { method: 'GET' as const, url: `/api/v1/groups/${group.id}/balances` },
+      { method: 'GET' as const, url: `/api/v1/groups/${group.id}/activity` },
+    ];
+
+    for (const { method, url } of endpoints) {
+      const res = await app.inject({ method, url });
+      expect(res.statusCode).toBe(401);
+    }
+  });
+});
+
+describe('Content-Type: application/json on bodyless requests', () => {
+  it('DELETE with Content-Type but no body returns 400', async () => {
+    const { group, cookie: aliceCookie } = await createGroup();
+    const { hashToken } = await import('../plugins/session.js');
+    const bobRawToken = 'test-bob-ct-token';
+    const [bob] = await db
+      .insert(members)
+      .values({
+        groupId: group.id,
+        displayName: 'Bob',
+        role: 'member',
+        sessionToken: hashToken(bobRawToken),
+      })
+      .returning();
+
+    // Simulate browser sending Content-Type: application/json on DELETE with no body
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/groups/${group.id}/members/${bob!.id}`,
+      headers: { cookie: aliceCookie, 'content-type': 'application/json' },
+    });
+    // Fastify 5 rejects empty body with Content-Type: application/json
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('FST_ERR_CTP_EMPTY_JSON_BODY');
+  });
+
+  it('DELETE without Content-Type header succeeds', async () => {
+    const { group, cookie: aliceCookie } = await createGroup();
+    const { hashToken } = await import('../plugins/session.js');
+    const bobRawToken = 'test-bob-noct-token';
+    const [bob] = await db
+      .insert(members)
+      .values({
+        groupId: group.id,
+        displayName: 'Bob',
+        role: 'member',
+        sessionToken: hashToken(bobRawToken),
+      })
+      .returning();
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/groups/${group.id}/members/${bob!.id}`,
+      headers: { cookie: aliceCookie },
+    });
+    expect(res.statusCode).toBe(204);
+  });
+});

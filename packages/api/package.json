@@ -14,7 +14,7 @@
     "db:migrate": "tsx src/migrate.ts",
     "db:studio": "drizzle-kit studio",
     "test": "vitest run",
-    "test:unit": "vitest run src/__tests__/debt.test.ts src/__tests__/splits.test.ts",
+    "test:unit": "vitest run src/tests/debt.test.ts src/tests/splits.test.ts",
     "test:watch": "vitest"
   },
   "dependencies": {

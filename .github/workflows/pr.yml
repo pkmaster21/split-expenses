@@ -47,7 +47,7 @@ jobs:
       - run: npm run build --workspace=packages/shared
       - run: |
           cd packages/api
-          npx vitest run --reporter=verbose src/__tests__/debt.test.ts src/__tests__/splits.test.ts
+          npx vitest run --reporter=verbose src/tests/debt.test.ts src/tests/splits.test.ts
 
   integration-tests:
     name: Integration Tests
@@ -70,7 +70,7 @@ jobs:
         run: npx drizzle-kit push --force
       - name: Run integration tests
         working-directory: packages/api
-        run: npx vitest run --reporter=verbose src/__tests__/api.test.ts
+        run: npx vitest run --reporter=verbose src/tests/api.test.ts
 
   schema-drift:
     name: Schema Drift Check
