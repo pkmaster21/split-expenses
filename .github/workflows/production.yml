@@ -42,10 +42,10 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v5
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: 1.6.0
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v5
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -56,34 +56,47 @@ jobs:
         env:
           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
       - name: Terraform Plan
+        id: plan
         working-directory: infra
-        run: terraform plan -out=tfplan
+        run: |
+          terraform plan -out=tfplan -detailed-exitcode || exit_code=$?
+          if [ "$exit_code" -eq 2 ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          elif [ "$exit_code" -eq 0 ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          else
+            exit $exit_code
+          fi
         env:
           TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
       - name: Upload plan artifact
-        uses: actions/upload-artifact@v4
+        if: steps.plan.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@v5
         with:
           name: tfplan
           path: infra/tfplan
           retention-days: 1
+    outputs:
+      has_changes: ${{ steps.plan.outputs.has_changes }}
 
   deploy-infrastructure:
     name: Terraform Apply (Manual Approval)
     needs: terraform-plan
+    if: needs.terraform-plan.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
     environment: production
     steps:
       - uses: actions/checkout@v5
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: 1.6.0
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v5
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
       - name: Download plan artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: tfplan
           path: infra
@@ -100,7 +113,8 @@ jobs:
 
   deploy-app:
     name: Deploy App to Production
-    needs: deploy-infrastructure
+    needs: [test, deploy-infrastructure]
+    if: always() && needs.test.result == 'success' && (needs.deploy-infrastructure.result == 'success' || needs.deploy-infrastructure.result == 'skipped')
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -109,7 +123,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v5
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
