@@ -25,7 +25,7 @@ export async function buildApp() {
   });
 
   await fastify.register(rateLimit, {
-    max: 100,
+    max: 1000,
     timeWindow: '1 minute',
   });
 
