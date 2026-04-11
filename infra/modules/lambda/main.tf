@@ -31,7 +31,10 @@ resource "aws_iam_role_policy_attachment" "basic_execution" {
 data "aws_iam_policy_document" "lambda_policy" {
   statement {
     actions   = ["ssm:GetParametersByPath", "ssm:GetParameter"]
-    resources = ["arn:aws:ssm:*:*:parameter${var.ssm_path_prefix}/*"]
+    resources = [
+      "arn:aws:ssm:*:*:parameter${var.ssm_path_prefix}",
+      "arn:aws:ssm:*:*:parameter${var.ssm_path_prefix}/*",
+    ]
   }
   statement {
     actions   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
