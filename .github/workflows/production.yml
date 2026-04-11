@@ -138,7 +138,7 @@ jobs:
 
       - name: Run Drizzle migrations (production DB)
         working-directory: packages/api
-        run: npx drizzle-kit migrate
+        run: npx tsx src/migrate.ts
         env:
           DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
 
