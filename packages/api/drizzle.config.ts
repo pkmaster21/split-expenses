@@ -1,4 +1,8 @@
+import { neonConfig } from '@neondatabase/serverless';
+import ws from 'ws';
 import type { Config } from 'drizzle-kit';
+
+neonConfig.webSocketConstructor = ws;
 
 export default {
   schema: './src/db/schema.ts',
