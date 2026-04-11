@@ -1,5 +1,13 @@
-CREATE TYPE "public"."member_role" AS ENUM('owner', 'admin', 'member');--> statement-breakpoint
-CREATE TYPE "public"."split_type" AS ENUM('equal', 'exact', 'percentage');--> statement-breakpoint
+DO $$ BEGIN
+ CREATE TYPE "public"."member_role" AS ENUM('owner', 'admin', 'member');
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+ CREATE TYPE "public"."split_type" AS ENUM('equal', 'exact', 'percentage');
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "activity_logs" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"group_id" uuid NOT NULL,
