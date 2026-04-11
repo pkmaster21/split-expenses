@@ -11,8 +11,8 @@ async function getHandler(): Promise<LambdaHandler> {
   if (!handler) {
     await loadConfig();
     const app = await buildApp();
-    await app.ready();
     handler = awsLambdaFastify(app) as LambdaHandler;
+    await app.ready();
   }
   return handler;
 }
