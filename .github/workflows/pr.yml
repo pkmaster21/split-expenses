@@ -72,6 +72,27 @@ jobs:
         working-directory: packages/api
         run: npx vitest run --reporter=verbose src/__tests__/api.test.ts
 
+  schema-drift:
+    name: Schema Drift Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build --workspace=packages/shared
+      - name: Generate migrations and check for drift
+        working-directory: packages/api
+        run: |
+          npx drizzle-kit generate
+          if [ -n "$(git status --porcelain drizzle/)" ]; then
+            echo "::error::Schema drift detected — run 'drizzle-kit generate' and commit the result"
+            git diff drizzle/
+            exit 1
+          fi
+
   build-check:
     name: Build Check
     runs-on: ubuntu-latest

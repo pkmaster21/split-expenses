@@ -73,10 +73,6 @@ export interface CreateGroupResponse {
   member: Member;
 }
 
-export interface JoinGroupRequest {
-  displayName: string;
-}
-
 export interface JoinGroupResponse {
   group: Group;
   member: Member;
