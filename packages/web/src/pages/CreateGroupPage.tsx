@@ -10,7 +10,7 @@ import { Input } from '../components/Input.js';
 export default function CreateGroupPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, login } = useAuth();
   const [groupName, setGroupName] = useState('');
   const [displayName, setDisplayName] = useState(user?.name ?? '');
   const [error, setError] = useState('');
@@ -23,7 +23,7 @@ export default function CreateGroupPage() {
     try {
       const { group } = await api.createGroup({
         name: groupName.trim(),
-        displayName: displayName.trim() || undefined,
+        displayName: displayName.trim(),
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.myGroups() });
       navigate(`/groups/${group.id}`);
@@ -63,6 +63,19 @@ export default function CreateGroupPage() {
             required
             maxLength={50}
           />
+          {!user && (
+            <p className="text-xs text-gray-400">
+              Creating as a guest. Your session is saved to this browser only.{' '}
+              <button
+                type="button"
+                onClick={() => login('/create')}
+                className="text-indigo-500 hover:underline"
+              >
+                Sign in with Google
+              </button>{' '}
+              to keep access across devices.
+            </p>
+          )}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <Button type="submit" loading={loading} className="w-full" size="lg">
             Create group

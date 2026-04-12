@@ -14,11 +14,13 @@ export default function HomePage() {
   const groupsQuery = useQuery({
     queryKey: queryKeys.myGroups(),
     queryFn: () => api.getMyGroups(),
-    enabled: !!user,
+    retry: false,
   });
 
-  // Not logged in — show landing page
-  if (!authLoading && !user) {
+  const groups = groupsQuery.data ?? [];
+
+  // Show landing page only when we're certain there's no session at all
+  if (!authLoading && !groupsQuery.isLoading && !user && groups.length === 0) {
     return (
       <CatBackground className="flex flex-col items-center justify-center p-6 bg-gradient-to-b from-indigo-50 to-white">
         <div className="max-w-md w-full text-center space-y-8">
@@ -30,12 +32,17 @@ export default function HomePage() {
             <p className="text-gray-500">Keep your tabs in check.</p>
           </div>
 
-          <div className="space-y-4">
-            <Button size="lg" className="w-full" onClick={() => login('/')}>
+          <div className="space-y-3">
+            <Link to="/create" className="block">
+              <Button size="lg" className="w-full">
+                Create a group
+              </Button>
+            </Link>
+            <Button size="lg" className="w-full" variant="secondary" onClick={() => login('/')}>
               Sign in with Google
             </Button>
             <p className="text-sm text-gray-400">
-              Have an invite link? Sign in first, then open it.
+              Have an invite link? Open it directly — no sign-in needed.
             </p>
           </div>
 
@@ -66,8 +73,6 @@ export default function HomePage() {
     );
   }
 
-  const groups = groupsQuery.data ?? [];
-
   // Logged in — show group list
   return (
     <div className="min-h-screen bg-gray-50">
@@ -93,7 +98,7 @@ export default function HomePage() {
 
         {groups.length === 0 && (
           <div className="text-center py-12 space-y-4">
-            <p className="text-gray-400">You're not in any groups yet.</p>
+            <p className="text-gray-400">You&apos;re not in any groups yet.</p>
             <Link to="/create">
               <Button>Create your first group</Button>
             </Link>

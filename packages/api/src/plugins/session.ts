@@ -59,7 +59,7 @@ async function sessionPlugin(fastify: FastifyInstance) {
  * For group-scoped routes, resolve request.member from request.user + groupId.
  * Call this after requireSession in preHandler hooks for group routes.
  */
-export async function resolveGroupMember(request: FastifyRequest, reply: FastifyReply) {
+export async function resolveGroupMember(request: FastifyRequest, _reply: FastifyReply) {
   // If member is already set (legacy path), skip
   if (request.member) return;
 
@@ -97,23 +97,6 @@ export async function requireGroupMember(request: FastifyRequest, reply: Fastify
   }
 }
 
-export async function requireAdmin(request: FastifyRequest, reply: FastifyReply) {
-  await resolveGroupMember(request, reply);
-
-  if (!request.member) {
-    await reply.status(401).send({ error: 'Authentication required' });
-    return;
-  }
-  const { id } = request.params as { id: string };
-  if (request.member.groupId !== id) {
-    await reply.status(403).send({ error: 'Forbidden' });
-    return;
-  }
-  if (request.member.role !== 'admin' && request.member.role !== 'owner') {
-    await reply.status(403).send({ error: 'Admin access required' });
-    return;
-  }
-}
 
 export async function requireOwner(request: FastifyRequest, reply: FastifyReply) {
   await resolveGroupMember(request, reply);

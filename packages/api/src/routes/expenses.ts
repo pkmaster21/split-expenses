@@ -168,7 +168,7 @@ export async function expenseRoutes(fastify: FastifyInstance) {
           },
         },
         tags: ['expenses'],
-        summary: 'Edit an expense (owner of expense or admin)',
+        summary: 'Edit an expense (owner of expense or group owner)',
       },
       preHandler: [requireSession, requireGroupMember],
     },
@@ -183,7 +183,7 @@ export async function expenseRoutes(fastify: FastifyInstance) {
 
       if (!expense) return reply.status(404).send({ error: 'Expense not found' });
 
-      const isOwnerOrAdmin = member.role === 'owner' || member.role === 'admin';
+      const isOwnerOrAdmin = member.role === 'owner';
       if (expense.paidBy !== member.id && !isOwnerOrAdmin) {
         return reply.status(403).send({ error: "Cannot edit another member's expense" });
       }
@@ -294,7 +294,7 @@ export async function expenseRoutes(fastify: FastifyInstance) {
           },
         },
         tags: ['expenses'],
-        summary: 'Delete an expense (owner of expense or admin)',
+        summary: 'Delete an expense (owner of expense or group owner)',
       },
       preHandler: [requireSession, requireGroupMember],
     },
@@ -309,7 +309,7 @@ export async function expenseRoutes(fastify: FastifyInstance) {
 
       if (!expense) return reply.status(404).send({ error: 'Expense not found' });
 
-      const isOwnerOrAdmin = member.role === 'owner' || member.role === 'admin';
+      const isOwnerOrAdmin = member.role === 'owner';
       if (expense.paidBy !== member.id && !isOwnerOrAdmin) {
         return reply.status(403).send({ error: "Cannot delete another member's expense" });
       }

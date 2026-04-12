@@ -8,6 +8,20 @@
       "when": 1774247628341,
       "tag": "0000_clumsy_bastion",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1776017091671,
+      "tag": "0001_nice_thaddeus_ross",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776262582036,
+      "tag": "0002_fearless_loki",
+      "breakpoints": true
     }
   ]
 }

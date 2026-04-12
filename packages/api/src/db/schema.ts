@@ -10,7 +10,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
-export const memberRoleEnum = pgEnum('member_role', ['owner', 'admin', 'member']);
+export const memberRoleEnum = pgEnum('member_role', ['owner', 'member']);
 export const splitTypeEnum = pgEnum('split_type', ['equal', 'exact', 'percentage']);
 
 export const users = pgTable(

@@ -111,7 +111,6 @@ export default function SettingsPage() {
   };
 
   const isOwner = currentMember?.role === 'owner';
-  const isAdmin = currentMember?.role === 'owner' || currentMember?.role === 'admin';
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -180,7 +179,7 @@ export default function SettingsPage() {
           )}
         </section>
 
-        {isAdmin && (
+        {isOwner && (
           <section className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 space-y-3">
             <h2 className="font-semibold text-gray-900">Members</h2>
             <div className="space-y-2">

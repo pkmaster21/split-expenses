@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { randomBytes, createHash } from 'crypto';
-import { db, users, sessions } from '../db/index.js';
-import { eq } from 'drizzle-orm';
+import { db, users, sessions, members } from '../db/index.js';
+import { eq, and, isNull } from 'drizzle-orm';
 import { SESSION_COOKIE } from '../plugins/session.js';
 
 function hashToken(token: string): string {
@@ -127,6 +127,32 @@ export async function authRoutes(fastify: FastifyInstance) {
 
     if (!user) {
       return reply.status(500).send({ error: 'Failed to create user' });
+    }
+
+    // Merge any guest member records from the current browser session
+    const guestToken = request.cookies[SESSION_COOKIE];
+    if (guestToken) {
+      const guestHash = hashToken(guestToken);
+      const guestMembers = await db
+        .select()
+        .from(members)
+        .where(and(eq(members.sessionToken, guestHash), isNull(members.leftAt)));
+
+      for (const guestMember of guestMembers) {
+        // Check if this Google user is already a member of this group
+        const [existing] = await db
+          .select()
+          .from(members)
+          .where(and(eq(members.userId, user.id), eq(members.groupId, guestMember.groupId), isNull(members.leftAt)));
+
+        if (existing) {
+          // Drop the guest record — the authenticated member takes precedence
+          await db.update(members).set({ leftAt: new Date() }).where(eq(members.id, guestMember.id));
+        } else {
+          // Link the guest member record to the Google account
+          await db.update(members).set({ userId: user.id, sessionToken: null }).where(eq(members.id, guestMember.id));
+        }
+      }
     }
 
     // Create session

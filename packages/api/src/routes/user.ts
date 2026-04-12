@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { db, groups, members } from '../db/index.js';
-import { eq, isNull, and, count, desc, sql } from 'drizzle-orm';
+import { eq, isNull, and, count } from 'drizzle-orm';
 import { requireSession } from '../plugins/session.js';
 
 export async function userRoutes(fastify: FastifyInstance) {
@@ -15,20 +15,30 @@ export async function userRoutes(fastify: FastifyInstance) {
       preHandler: [requireSession],
     },
     async (request, reply) => {
-      if (!request.user) {
+      let userMembers: { memberId: string; groupId: string; role: string; displayName: string }[];
+
+      if (request.user) {
+        // Authenticated path — all groups linked to this Google account
+        userMembers = await db
+          .select({
+            memberId: members.id,
+            groupId: members.groupId,
+            role: members.role,
+            displayName: members.displayName,
+          })
+          .from(members)
+          .where(and(eq(members.userId, request.user.id), isNull(members.leftAt)));
+      } else if (request.member) {
+        // Guest path — single group tied to the session token
+        userMembers = [{
+          memberId: request.member.id,
+          groupId: request.member.groupId,
+          role: request.member.role,
+          displayName: request.member.displayName,
+        }];
+      } else {
         return reply.status(401).send({ error: 'Authentication required' });
       }
-
-      // Find all active memberships for this user
-      const userMembers = await db
-        .select({
-          memberId: members.id,
-          groupId: members.groupId,
-          role: members.role,
-          displayName: members.displayName,
-        })
-        .from(members)
-        .where(and(eq(members.userId, request.user.id), isNull(members.leftAt)));
 
       if (userMembers.length === 0) {
         return reply.send([]);

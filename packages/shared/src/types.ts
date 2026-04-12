@@ -1,4 +1,4 @@
-export type MemberRole = 'owner' | 'admin' | 'member';
+export type MemberRole = 'owner' | 'member';
 export type SplitType = 'equal' | 'exact' | 'percentage';
 
 export interface User {

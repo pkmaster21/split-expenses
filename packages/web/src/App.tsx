@@ -22,9 +22,7 @@ export default function App() {
             <Route path="/g/:inviteCode" element={<JoinPage />} />
             <Route path="/groups/:id" element={<DashboardPage />} />
             <Route path="/groups/:id/settings" element={<SettingsPage />} />
-            <Route element={<ProtectedRoute />}>
-              <Route path="/create" element={<CreateGroupPage />} />
-            </Route>
+            <Route path="/create" element={<CreateGroupPage />} />
           </Routes>
         </BrowserRouter>
       </AuthProvider>

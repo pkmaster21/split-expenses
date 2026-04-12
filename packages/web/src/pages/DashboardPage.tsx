@@ -228,7 +228,7 @@ export default function DashboardPage() {
                   currentMember &&
                   (exp.paidBy === currentMember.id ||
                     currentMember.role === 'owner' ||
-                    currentMember.role === 'admin');
+                    currentMember.role === 'owner');
                 return (
                   <div key={exp.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
                     <div className="flex items-start justify-between gap-2">

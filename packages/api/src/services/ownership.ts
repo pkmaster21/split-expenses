@@ -10,22 +10,6 @@ export async function ensureOwnerExists(groupId: string): Promise<void> {
 
   if (owner) return;
 
-  const [admin] = await db
-    .select()
-    .from(members)
-    .where(and(eq(members.groupId, groupId), eq(members.role, 'admin'), isNull(members.leftAt)))
-    .orderBy(asc(members.joinedAt))
-    .limit(1);
-
-  if (admin) {
-    await db.update(members).set({ role: 'owner' }).where(eq(members.id, admin.id));
-    await db.insert(activityLog).values({
-      groupId,
-      message: `${admin.displayName} is now the group owner`,
-    });
-    return;
-  }
-
   const [oldest] = await db
     .select()
     .from(members)

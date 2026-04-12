@@ -5,7 +5,7 @@ import { eq, isNull, and, asc, count } from 'drizzle-orm';
 import {
   requireSession,
   requireGroupMember,
-  requireAdmin,
+  requireOwner,
   hashToken,
   SESSION_COOKIE,
 } from '../plugins/session.js';
@@ -192,7 +192,7 @@ export async function memberRoutes(fastify: FastifyInstance) {
         tags: ['members'],
         summary: 'Remove a member (admin+ only)',
       },
-      preHandler: [requireSession, requireGroupMember, requireAdmin],
+      preHandler: [requireSession, requireGroupMember, requireOwner],
     },
     async (request, reply) => {
       const { id, memberId } = request.params as { id: string; memberId: string };

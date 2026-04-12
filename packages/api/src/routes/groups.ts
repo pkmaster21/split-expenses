@@ -6,6 +6,8 @@ import {
   requireSession,
   requireGroupMember,
   requireOwner,
+  hashToken,
+  SESSION_COOKIE,
 } from '../plugins/session.js';
 import { groupExpiresAt } from '../lib/time.js';
 
@@ -29,27 +31,45 @@ export async function groupRoutes(fastify: FastifyInstance) {
         tags: ['groups'],
         summary: 'Create a new group',
       },
-      preHandler: [requireSession],
     },
     async (request, reply) => {
       const { name, displayName } = request.body as { name: string; displayName?: string };
 
-      if (!request.user) {
-        return reply.status(401).send({ error: 'Authentication required' });
+      const inviteCode = generateInviteCode();
+      const groupId = randomUUID();
+
+      if (request.user) {
+        // Authenticated path
+        const memberName = displayName ?? request.user.name;
+        const [groupRows, memberRows] = await db.batch([
+          db.insert(groups).values({ id: groupId, name, inviteCode, expiresAt: groupExpiresAt() }).returning(),
+          db.insert(members).values({ groupId, userId: request.user.id, displayName: memberName, role: 'owner' }).returning(),
+        ]);
+        return reply.status(201).send({ group: groupRows[0]!, member: memberRows[0]! });
       }
 
-      const inviteCode = generateInviteCode();
-      const memberName = displayName ?? request.user.name;
+      // Guest path
+      if (!displayName?.trim()) {
+        return reply.status(400).send({ error: 'Display name is required' });
+      }
 
-      const groupId = randomUUID();
+      const sessionToken = randomBytes(32).toString('base64url');
+      const tokenHash = hashToken(sessionToken);
+
       const [groupRows, memberRows] = await db.batch([
         db.insert(groups).values({ id: groupId, name, inviteCode, expiresAt: groupExpiresAt() }).returning(),
-        db.insert(members).values({ groupId, userId: request.user.id, displayName: memberName, role: 'owner' }).returning(),
+        db.insert(members).values({ groupId, displayName: displayName.trim(), sessionToken: tokenHash, role: 'owner' }).returning(),
       ]);
-      const group = groupRows[0]!;
-      const member = memberRows[0]!;
 
-      return reply.status(201).send({ group, member });
+      reply.setCookie(SESSION_COOKIE, sessionToken, {
+        httpOnly: true,
+        path: '/',
+        sameSite: process.env['NODE_ENV'] === 'prod' ? 'none' : 'lax',
+        secure: process.env['NODE_ENV'] === 'prod',
+        maxAge: 60 * 60 * 24 * 30,
+      });
+
+      return reply.status(201).send({ group: groupRows[0]!, member: memberRows[0]! });
     },
   );
 
