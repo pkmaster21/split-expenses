@@ -28,12 +28,15 @@ locals {
 }
 
 module "ssm" {
-  source        = "./modules/ssm"
-  prefix        = local.prefix
-  tags          = local.tags
-  database_url  = var.neon_database_url
-  cookie_secret = var.cookie_secret
-  cors_origin   = var.cors_origin
+  source               = "./modules/ssm"
+  prefix               = local.prefix
+  tags                 = local.tags
+  database_url         = var.neon_database_url
+  cookie_secret        = var.cookie_secret
+  cors_origin          = var.cors_origin
+  google_client_id     = var.google_client_id
+  google_client_secret = var.google_client_secret
+  google_redirect_uri  = var.google_redirect_uri
 }
 
 module "lambda" {

@@ -1,13 +1,14 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 import { createHash } from 'crypto';
-import { db, members } from '../db/index.js';
-import type { Member } from '../db/schema.js';
+import { db, members, sessions, users } from '../db/index.js';
+import type { Member, User } from '../db/schema.js';
 import { eq, isNull, and } from 'drizzle-orm';
 import { ensureOwnerExists } from '../services/ownership.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
+    user: User | null;
     member: Member | null;
   }
 }
@@ -19,6 +20,7 @@ function hashToken(token: string): string {
 export const SESSION_COOKIE = 'session_token';
 
 async function sessionPlugin(fastify: FastifyInstance) {
+  fastify.decorateRequest('user', null);
   fastify.decorateRequest('member', null);
 
   fastify.addHook('preHandler', async (request: FastifyRequest) => {
@@ -26,6 +28,25 @@ async function sessionPlugin(fastify: FastifyInstance) {
     if (!token) return;
 
     const hashed = hashToken(token);
+
+    // New path: look up in sessions table → resolve user
+    const [session] = await db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.tokenHash, hashed));
+
+    if (session && session.expiresAt > new Date()) {
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, session.userId));
+      if (user) {
+        request.user = user;
+        return;
+      }
+    }
+
+    // Legacy fallback: look up in members table directly
     const [member] = await db
       .select()
       .from(members)
@@ -34,14 +55,37 @@ async function sessionPlugin(fastify: FastifyInstance) {
   });
 }
 
+/**
+ * For group-scoped routes, resolve request.member from request.user + groupId.
+ * Call this after requireSession in preHandler hooks for group routes.
+ */
+export async function resolveGroupMember(request: FastifyRequest, reply: FastifyReply) {
+  // If member is already set (legacy path), skip
+  if (request.member) return;
+
+  if (!request.user) return;
+
+  const { id } = request.params as { id: string };
+  if (!id) return;
+
+  const [member] = await db
+    .select()
+    .from(members)
+    .where(and(eq(members.userId, request.user.id), eq(members.groupId, id), isNull(members.leftAt)));
+  request.member = member ?? null;
+}
+
 export async function requireSession(request: FastifyRequest, reply: FastifyReply) {
-  if (!request.member) {
+  if (!request.user && !request.member) {
     await reply.status(401).send({ error: 'Authentication required' });
     return;
   }
 }
 
 export async function requireGroupMember(request: FastifyRequest, reply: FastifyReply) {
+  // First resolve member from user if needed
+  await resolveGroupMember(request, reply);
+
   if (!request.member) {
     await reply.status(401).send({ error: 'Authentication required' });
     return;
@@ -54,6 +98,8 @@ export async function requireGroupMember(request: FastifyRequest, reply: Fastify
 }
 
 export async function requireAdmin(request: FastifyRequest, reply: FastifyReply) {
+  await resolveGroupMember(request, reply);
+
   if (!request.member) {
     await reply.status(401).send({ error: 'Authentication required' });
     return;
@@ -70,6 +116,8 @@ export async function requireAdmin(request: FastifyRequest, reply: FastifyReply)
 }
 
 export async function requireOwner(request: FastifyRequest, reply: FastifyReply) {
+  await resolveGroupMember(request, reply);
+
   if (!request.member) {
     await reply.status(401).send({ error: 'Authentication required' });
     return;
@@ -80,9 +128,6 @@ export async function requireOwner(request: FastifyRequest, reply: FastifyReply)
     return;
   }
   if (request.member.role !== 'owner') {
-    // Lazy ownership recovery: if the group has no active owner (e.g. the
-    // original owner lost their session), promote the first admin or earliest
-    // member and re-check whether this requester was promoted.
     await ensureOwnerExists(id);
     const [refreshed] = await db
       .select()

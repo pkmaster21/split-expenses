@@ -3,7 +3,9 @@ import type {
   CreateGroupResponse,
   JoinGroupResponse,
   Group,
+  GroupListItem,
   Member,
+  User,
   Expense,
   BalancesResponse,
   ActivityLogEntry,
@@ -67,6 +69,9 @@ export const api = {
   getMembers: (groupId: string) =>
     request<Member[]>(`/api/v1/groups/${groupId}/members`),
 
+  getCurrentMember: (groupId: string) =>
+    request<Member>(`/api/v1/groups/${groupId}/me`),
+
   removeMember: (groupId: string, memberId: string) =>
     request<void>(`/api/v1/groups/${groupId}/members/${memberId}`, {
       method: 'DELETE',
@@ -103,4 +108,10 @@ export const api = {
 
   getActivity: (groupId: string) =>
     request<ActivityLogEntry[]>(`/api/v1/groups/${groupId}/activity`),
+
+  getMe: () => request<User>('/api/v1/auth/me'),
+
+  getMyGroups: () => request<GroupListItem[]>('/api/v1/me/groups'),
+
+  logout: () => request<void>('/api/v1/auth/logout', { method: 'POST' }),
 };

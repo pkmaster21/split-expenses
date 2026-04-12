@@ -9,6 +9,8 @@ import { groupRoutes } from './routes/groups.js';
 import { memberRoutes } from './routes/members.js';
 import { expenseRoutes } from './routes/expenses.js';
 import { balanceRoutes } from './routes/balances.js';
+import { authRoutes } from './routes/auth.js';
+import { userRoutes } from './routes/user.js';
 
 export async function buildApp() {
   const fastify = Fastify({
@@ -54,6 +56,8 @@ export async function buildApp() {
 
   await fastify.register(sessionPlugin);
 
+  await fastify.register(authRoutes);
+  await fastify.register(userRoutes);
   await fastify.register(groupRoutes);
   await fastify.register(memberRoutes);
   await fastify.register(expenseRoutes);

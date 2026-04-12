@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react';
-import type { Member, SplitType, ExactSplitInput, PercentageSplitInput } from '@tabby/shared';
+import type { Member, Expense, SplitType, ExactSplitInput, PercentageSplitInput } from '@tabby/shared';
 import { Modal } from './Modal.js';
 import { Button } from './Button.js';
 import { Input } from './Input.js';
@@ -9,6 +9,7 @@ interface AddExpenseModalProps {
   onClose: () => void;
   members: Member[];
   currentMemberId: string;
+  initialExpense?: Expense;
   onSave: (data: {
     description: string;
     amount: number;
@@ -23,14 +24,31 @@ export function AddExpenseModal({
   onClose,
   members,
   currentMemberId,
+  initialExpense,
   onSave,
 }: AddExpenseModalProps) {
-  const [description, setDescription] = useState('');
-  const [amount, setAmount] = useState('');
-  const [splitType, setSplitType] = useState<SplitType>('equal');
-  const [selectedIds, setSelectedIds] = useState<string[]>(members.map((m) => m.id));
-  const [exactAmounts, setExactAmounts] = useState<Record<string, string>>({});
-  const [percentages, setPercentages] = useState<Record<string, string>>({});
+  const isEditing = !!initialExpense;
+  const [description, setDescription] = useState(initialExpense?.description ?? '');
+  const [amount, setAmount] = useState(initialExpense ? String(Number(initialExpense.amount)) : '');
+  const [splitType, setSplitType] = useState<SplitType>(initialExpense?.splitType ?? 'equal');
+  const [selectedIds, setSelectedIds] = useState<string[]>(
+    initialExpense ? initialExpense.splits.map((s) => s.memberId) : members.map((m) => m.id),
+  );
+  const [exactAmounts, setExactAmounts] = useState<Record<string, string>>(
+    initialExpense?.splitType === 'exact'
+      ? Object.fromEntries(initialExpense.splits.map((s) => [s.memberId, String(Number(s.amount))]))
+      : {},
+  );
+  const [percentages, setPercentages] = useState<Record<string, string>>(
+    initialExpense?.splitType === 'percentage'
+      ? Object.fromEntries(
+          initialExpense.splits.map((s) => {
+            const pct = (Number(s.amount) / Number(initialExpense.amount)) * 100;
+            return [s.memberId, String(Math.round(pct))];
+          }),
+        )
+      : {},
+  );
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -85,7 +103,7 @@ export function AddExpenseModal({
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Add expense">
+    <Modal open={open} onClose={onClose} title={isEditing ? 'Edit expense' : 'Add expense'}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
           label="Description"
@@ -178,7 +196,7 @@ export function AddExpenseModal({
             Cancel
           </Button>
           <Button type="submit" loading={loading} className="flex-1">
-            Add expense
+            {isEditing ? 'Save changes' : 'Add expense'}
           </Button>
         </div>
       </form>

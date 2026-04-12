@@ -1,15 +1,18 @@
 import { test, expect } from '@playwright/test';
-import { createGroup, getInviteUrl, joinGroup, addExpense, goToBalances } from './helpers.js';
+import { login, createGroup, getInviteUrl, joinGroup, addExpense, goToBalances } from './helpers.js';
 
 test.describe('Smoke test: walk through the app', () => {
-  test('landing page → create group → invite → add expense → balances → settings', async ({
+  test('login → home page → create group → invite → add expense → balances → settings', async ({
     page,
     browser,
   }) => {
-    // Landing page loads
+    // Log in as Alice
+    await login(page, { name: 'Alice', email: 'alice@test.local' });
+
+    // Home page loads with group list
     await page.goto('/');
     await expect(page.getByText('Tabby')).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Create a group' })).toBeVisible();
+    await expect(page.getByText('Your groups')).toBeVisible();
 
     // Create a group
     const { groupId } = await createGroup(page, {
@@ -50,10 +53,11 @@ test.describe('Smoke test: walk through the app', () => {
     await bob.context.close();
   });
 
-  test('offline indicator appears when disconnected', async ({ page, context }) => {
+  test('offline indicator appears when disconnected', async ({ page }) => {
+    await login(page, { name: 'Alice', email: 'alice-offline@test.local' });
     await createGroup(page, { groupName: 'Offline Test', displayName: 'Alice' });
 
-    await context.setOffline(true);
+    await page.context().setOffline(true);
 
     await expect(
       page.getByText('Offline — showing cached data', { exact: false }),
@@ -62,7 +66,15 @@ test.describe('Smoke test: walk through the app', () => {
     await expect(page.getByRole('button', { name: /add expense/i })).not.toBeVisible();
   });
 
+  test('login page redirects authenticated users', async ({ page }) => {
+    await login(page, { name: 'Alice', email: 'alice-redirect@test.local' });
+    await page.goto('/login');
+    await page.waitForURL('/');
+    await expect(page.getByText('Tabby')).toBeVisible();
+  });
+
   test('invalid invite code shows not found', async ({ page }) => {
+    await login(page, { name: 'Alice', email: 'alice-invite@test.local' });
     await page.goto('/g/invalidcode123');
     await expect(page.getByText('Group not found')).toBeVisible();
   });

@@ -1,12 +1,17 @@
 import { useState, FormEvent, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../lib/api.js';
+import { queryKeys } from '../lib/queryKeys.js';
+import { useAuth } from '../lib/auth.js';
 import { Button } from '../components/Button.js';
 import { Input } from '../components/Input.js';
 
 export default function JoinPage() {
   const { inviteCode } = useParams<{ inviteCode: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { user, isLoading: authLoading } = useAuth();
   const [displayName, setDisplayName] = useState('');
   const [groupName, setGroupName] = useState('');
   const [memberCount, setMemberCount] = useState(0);
@@ -14,6 +19,13 @@ export default function JoinPage() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [expired, setExpired] = useState(false);
+
+  // Pre-fill display name once auth resolves
+  useEffect(() => {
+    if (!authLoading && user && !displayName) {
+      setDisplayName(user.name);
+    }
+  }, [authLoading, user, displayName]);
 
   useEffect(() => {
     if (!inviteCode) return;
@@ -34,8 +46,8 @@ export default function JoinPage() {
     setError('');
     setLoading(true);
     try {
-      const { group, member } = await api.joinGroup(inviteCode, displayName.trim());
-      localStorage.setItem(`member_hint_${group.id}`, member.id);
+      const { group } = await api.joinGroup(inviteCode, displayName.trim());
+      queryClient.invalidateQueries({ queryKey: queryKeys.myGroups() });
       navigate(`/groups/${group.id}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong');
@@ -87,8 +99,20 @@ export default function JoinPage() {
               onChange={(e) => setDisplayName(e.target.value)}
               required
               maxLength={50}
-              autoFocus
+              autoFocus={!user}
             />
+            {!user && !authLoading && (
+              <p className="text-xs text-gray-400">
+                Joining as a guest.{' '}
+                <Link
+                  to={`/login?redirect=/g/${inviteCode}`}
+                  className="text-indigo-500 hover:underline"
+                >
+                  Sign in with Google
+                </Link>{' '}
+                to keep access across devices.
+              </p>
+            )}
             {error && <p className="text-sm text-red-600">{error}</p>}
             <Button type="submit" loading={loading} className="w-full" size="lg">
               Join group

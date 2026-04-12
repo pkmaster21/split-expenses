@@ -1,13 +1,15 @@
 import { useState, useSyncExternalStore } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient, onlineManager } from '@tanstack/react-query';
-import type { Member, Expense, BalancesResponse } from '@tabby/shared';
+import type { Member, Expense, BalancesResponse, UpdateExpenseRequest } from '@tabby/shared';
 import { api, ApiError } from '../lib/api.js';
 import { queryKeys } from '../lib/queryKeys.js';
 import { Button } from '../components/Button.js';
 import { Avatar } from '../components/Avatar.js';
 import { Badge } from '../components/Badge.js';
 import { AddExpenseModal } from '../components/AddExpenseModal.js';
+import { ConfirmDialog } from '../components/ConfirmDialog.js';
+import { TabbyLogo } from '../components/TabbyLogo.js';
 
 function fmt(cents: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
@@ -28,6 +30,8 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
 
   const [showAddExpense, setShowAddExpense] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'expenses' | 'balances'>('expenses');
 
   const sharedQueryOptions = {
@@ -53,9 +57,15 @@ export default function DashboardPage() {
     ...sharedQueryOptions,
   });
 
+  const currentMemberQuery = useQuery({
+    queryKey: queryKeys.currentMember(id!),
+    queryFn: () => api.getCurrentMember(id!),
+  });
+
   const members: Member[] = membersQuery.data ?? [];
   const expenses: Expense[] = expensesQuery.data ?? [];
   const balances: BalancesResponse | null = balancesQuery.data ?? null;
+  const currentMember: Member | null = currentMemberQuery.data ?? null;
 
   // Build a name map that includes ghost (soft-deleted) members from the
   // balances response — active members alone won't cover settlement participants
@@ -70,10 +80,6 @@ export default function DashboardPage() {
       }
     }
   }
-
-  // Derive current member from query data — no separate useState needed
-  const storedId = localStorage.getItem(`member_hint_${id}`);
-  const currentMember = members.find((m) => m.id === storedId) ?? null;
 
   // Distinguish 401 (session gone) from 410 (group expired) for distinct UI states
   const anyError = membersQuery.error ?? expensesQuery.error ?? balancesQuery.error;
@@ -102,9 +108,20 @@ export default function DashboardPage() {
     },
   });
 
-  const handleDeleteExpense = (expenseId: string) => {
-    if (!confirm('Delete this expense?')) return;
-    deleteExpenseMutation.mutate(expenseId);
+  const updateExpenseMutation = useMutation({
+    mutationFn: ({ expenseId, data }: { expenseId: string; data: UpdateExpenseRequest }) =>
+      api.updateExpense(id!, expenseId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.expenses(id!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.balances(id!) });
+    },
+  });
+
+  const handleDeleteExpense = () => {
+    if (!pendingDeleteId) return;
+    deleteExpenseMutation.mutate(pendingDeleteId, {
+      onSuccess: () => setPendingDeleteId(null),
+    });
   };
 
   if (isLoading) {
@@ -121,7 +138,11 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div>
+          <div className="flex items-center gap-3">
+            <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <TabbyLogo size={28} />
+            </Link>
+            <Link to="/" className="text-indigo-600 hover:underline text-sm">← Home</Link>
             <h1 className="text-lg font-bold text-gray-900">Group Dashboard</h1>
             {!isOnline && (
               <p className="text-xs text-yellow-600">
@@ -223,16 +244,27 @@ export default function DashboardPage() {
                           ${Number(exp.amount).toFixed(2)}
                         </span>
                         {canEdit && (
-                          <button
-                            onClick={() => handleDeleteExpense(exp.id)}
-                            disabled={deleteExpenseMutation.isPending}
-                            className="text-gray-300 hover:text-red-400 transition-colors disabled:opacity-50"
-                            aria-label="Delete expense"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
+                          <>
+                            <button
+                              onClick={() => setEditingExpense(exp)}
+                              className="text-gray-300 hover:text-indigo-500 transition-colors"
+                              aria-label="Edit expense"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => setPendingDeleteId(exp.id)}
+                              disabled={deleteExpenseMutation.isPending}
+                              className="text-gray-300 hover:text-red-400 transition-colors disabled:opacity-50"
+                              aria-label="Delete expense"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -290,15 +322,40 @@ export default function DashboardPage() {
         )}
       </main>
 
+      <ConfirmDialog
+        open={!!pendingDeleteId}
+        onClose={() => setPendingDeleteId(null)}
+        onConfirm={handleDeleteExpense}
+        title="Delete expense"
+        message="Are you sure you want to delete this expense? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        loading={deleteExpenseMutation.isPending}
+      />
+
       {currentMember && (
-        <AddExpenseModal
-          key={String(showAddExpense)}
-          open={showAddExpense}
-          onClose={() => setShowAddExpense(false)}
-          members={members}
-          currentMemberId={currentMember.id}
-          onSave={async (data) => { await addExpenseMutation.mutateAsync(data); }}
-        />
+        <>
+          <AddExpenseModal
+            key={String(showAddExpense)}
+            open={showAddExpense}
+            onClose={() => setShowAddExpense(false)}
+            members={members}
+            currentMemberId={currentMember.id}
+            onSave={async (data) => { await addExpenseMutation.mutateAsync(data); }}
+          />
+          <AddExpenseModal
+            key={editingExpense?.id ?? 'edit-closed'}
+            open={!!editingExpense}
+            onClose={() => setEditingExpense(null)}
+            members={members}
+            currentMemberId={currentMember.id}
+            initialExpense={editingExpense ?? undefined}
+            onSave={async (data) => {
+              await updateExpenseMutation.mutateAsync({ expenseId: editingExpense!.id, data });
+              setEditingExpense(null);
+            }}
+          />
+        </>
       )}
     </div>
   );
