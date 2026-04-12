@@ -30,3 +30,19 @@ variable "cookie_secret" {
   type        = string
   sensitive   = true
 }
+
+variable "google_client_id" {
+  description = "Google OAuth client ID"
+  type        = string
+}
+
+variable "google_client_secret" {
+  description = "Google OAuth client secret"
+  type        = string
+  sensitive   = true
+}
+
+variable "google_redirect_uri" {
+  description = "Google OAuth redirect URI"
+  type        = string
+}

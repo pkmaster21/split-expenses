@@ -1,6 +1,13 @@
 export type MemberRole = 'owner' | 'admin' | 'member';
 export type SplitType = 'equal' | 'exact' | 'percentage';
 
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  avatarUrl: string | null;
+}
+
 export interface Group {
   id: string;
   name: string;
@@ -12,6 +19,7 @@ export interface Group {
 export interface Member {
   id: string;
   groupId: string;
+  userId: string | null;
   displayName: string;
   role: MemberRole;
   joinedAt: string;
@@ -65,7 +73,7 @@ export interface ActivityLogEntry {
 
 export interface CreateGroupRequest {
   name: string;
-  displayName: string;
+  displayName?: string;
 }
 
 export interface CreateGroupResponse {
@@ -102,6 +110,12 @@ export interface UpdateExpenseRequest {
   splitType?: SplitType;
   memberIds?: string[];
   splits?: ExactSplitInput[] | PercentageSplitInput[];
+}
+
+export interface GroupListItem {
+  group: Group;
+  memberCount: number;
+  role: MemberRole;
 }
 
 export interface UpdateGroupSettingsRequest {

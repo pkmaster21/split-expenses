@@ -6,6 +6,8 @@ import { api, ApiError } from '../lib/api.js';
 import { queryKeys } from '../lib/queryKeys.js';
 import { Button } from '../components/Button.js';
 import { Input } from '../components/Input.js';
+import { ConfirmDialog } from '../components/ConfirmDialog.js';
+import { TabbyLogo } from '../components/TabbyLogo.js';
 
 export default function SettingsPage() {
   const { id } = useParams<{ id: string }>();
@@ -13,6 +15,8 @@ export default function SettingsPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [copied, setCopied] = useState(false);
+  const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
+  const [pendingRemoveMemberId, setPendingRemoveMemberId] = useState<string | null>(null);
 
   // Fetch group data on mount — fixes the bug where inviteCode was only
   // available after clicking "Regenerate"
@@ -31,12 +35,14 @@ export default function SettingsPage() {
     queryFn: () => api.getActivity(id!),
   });
 
+  const currentMemberQuery = useQuery({
+    queryKey: queryKeys.currentMember(id!),
+    queryFn: () => api.getCurrentMember(id!),
+  });
+
   const members: Member[] = membersQuery.data ?? [];
   const activityLog: ActivityLogEntry[] = activityQuery.data ?? [];
-
-  // Derive current member from query data
-  const storedId = localStorage.getItem(`member_hint_${id}`);
-  const currentMember = members.find((m) => m.id === storedId) ?? null;
+  const currentMember: Member | null = currentMemberQuery.data ?? null;
 
   // Controlled input for group name — initialized from query data
   const [name, setName] = useState('');
@@ -81,7 +87,6 @@ export default function SettingsPage() {
   };
 
   const handleRegenerateLink = async () => {
-    if (!confirm('Regenerate invite link? The old link will stop working.')) return;
     setError('');
     try {
       await updateSettingsMutation.mutateAsync({ regenerateInviteCode: true });
@@ -89,15 +94,19 @@ export default function SettingsPage() {
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to regenerate');
+    } finally {
+      setShowRegenerateConfirm(false);
     }
   };
 
-  const handleRemoveMember = async (memberId: string) => {
-    if (!confirm('Remove this member?')) return;
+  const handleRemoveMember = async () => {
+    if (!pendingRemoveMemberId) return;
     try {
-      await removeMemberMutation.mutateAsync(memberId);
+      await removeMemberMutation.mutateAsync(pendingRemoveMemberId);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to remove member');
+    } finally {
+      setPendingRemoveMemberId(null);
     }
   };
 
@@ -108,6 +117,9 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
+          <Link to="/" className="flex items-center hover:opacity-80 transition-opacity">
+            <TabbyLogo size={28} />
+          </Link>
           <Link to={`/groups/${id}`} className="text-indigo-600 hover:underline text-sm">
             ← Back
           </Link>
@@ -156,7 +168,7 @@ export default function SettingsPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={handleRegenerateLink}
+                  onClick={() => setShowRegenerateConfirm(true)}
                   loading={updateSettingsMutation.isPending}
                 >
                   Regenerate link
@@ -182,7 +194,7 @@ export default function SettingsPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleRemoveMember(m.id)}
+                      onClick={() => setPendingRemoveMemberId(m.id)}
                       className="text-red-500 hover:text-red-700"
                     >
                       Remove
@@ -213,6 +225,28 @@ export default function SettingsPage() {
           </section>
         )}
       </main>
+
+      <ConfirmDialog
+        open={showRegenerateConfirm}
+        onClose={() => setShowRegenerateConfirm(false)}
+        onConfirm={handleRegenerateLink}
+        title="Regenerate invite link"
+        message="The current invite link will stop working. Anyone with the old link won't be able to join."
+        confirmLabel="Regenerate"
+        variant="danger"
+        loading={updateSettingsMutation.isPending}
+      />
+
+      <ConfirmDialog
+        open={!!pendingRemoveMemberId}
+        onClose={() => setPendingRemoveMemberId(null)}
+        onConfirm={handleRemoveMember}
+        title="Remove member"
+        message="Are you sure you want to remove this member from the group?"
+        confirmLabel="Remove"
+        variant="danger"
+        loading={removeMemberMutation.isPending}
+      />
     </div>
   );
 }

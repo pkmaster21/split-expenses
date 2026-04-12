@@ -3,15 +3,12 @@ import { randomBytes } from 'crypto';
 import { db, groups, members, activityLog } from '../db/index.js';
 import { eq, isNull, and, asc, count } from 'drizzle-orm';
 import {
-  SESSION_COOKIE,
-  hashToken,
   requireSession,
   requireGroupMember,
   requireAdmin,
+  hashToken,
+  SESSION_COOKIE,
 } from '../plugins/session.js';
-function generateSessionToken(): string {
-  return randomBytes(32).toString('base64url');
-}
 
 export async function memberRoutes(fastify: FastifyInstance) {
   fastify.post(
@@ -26,18 +23,18 @@ export async function memberRoutes(fastify: FastifyInstance) {
         },
         body: {
           type: 'object',
-          required: ['displayName'],
           properties: {
             displayName: { type: 'string', minLength: 1, maxLength: 50 },
           },
         },
         tags: ['members'],
-        summary: 'Join a group by invite code',
+        summary: 'Join a group by invite code (authenticated or guest)',
       },
+      // No requireSession — guests can join without logging in
     },
     async (request, reply) => {
       const { inviteCode } = request.params as { inviteCode: string };
-      const { displayName } = request.body as { displayName: string };
+      const { displayName } = request.body as { displayName?: string };
 
       const [group] = await db
         .select()
@@ -60,28 +57,57 @@ export async function memberRoutes(fastify: FastifyInstance) {
         return reply.status(409).send({ error: 'Group is full (max 50 members)' });
       }
 
-      const sessionToken = generateSessionToken();
-      const hashedToken = hashToken(sessionToken);
+      if (request.user) {
+        // Authenticated path — tie member to user account
+        const [existing] = await db
+          .select()
+          .from(members)
+          .where(and(eq(members.userId, request.user.id), eq(members.groupId, group.id), isNull(members.leftAt)));
 
-      const [member] = await db
-        .insert(members)
-        .values({
-          groupId: group.id,
-          displayName,
-          role: 'member',
-          sessionToken: hashedToken,
-        })
-        .returning();
+        if (existing) {
+          return reply.status(200).send({ group, member: existing });
+        }
 
-      reply.setCookie(SESSION_COOKIE, sessionToken, {
-        httpOnly: true,
-        path: '/',
-        sameSite: process.env['NODE_ENV'] === 'prod' ? 'none' : 'lax',
-        secure: process.env['NODE_ENV'] === 'prod',
-        maxAge: 60 * 60 * 24 * 365,
-      });
+        const [member] = await db
+          .insert(members)
+          .values({
+            groupId: group.id,
+            userId: request.user.id,
+            displayName: displayName ?? request.user.name,
+            role: 'member',
+          })
+          .returning();
 
-      return reply.status(201).send({ group, member });
+        return reply.status(201).send({ group, member });
+      } else {
+        // Guest path — create anonymous member with session token
+        if (!displayName?.trim()) {
+          return reply.status(400).send({ error: 'Display name is required for guest join' });
+        }
+
+        const sessionToken = randomBytes(32).toString('base64url');
+        const tokenHash = hashToken(sessionToken);
+
+        const [member] = await db
+          .insert(members)
+          .values({
+            groupId: group.id,
+            displayName: displayName.trim(),
+            sessionToken: tokenHash,
+            role: 'member',
+          })
+          .returning();
+
+        reply.setCookie(SESSION_COOKIE, sessionToken, {
+          httpOnly: true,
+          path: '/',
+          sameSite: process.env['NODE_ENV'] === 'prod' ? 'none' : 'lax',
+          secure: process.env['NODE_ENV'] === 'prod',
+          maxAge: 60 * 60 * 24 * 30, // 30 days
+        });
+
+        return reply.status(201).send({ group, member });
+      }
     },
   );
 
@@ -106,6 +132,7 @@ export async function memberRoutes(fastify: FastifyInstance) {
         .select({
           id: members.id,
           groupId: members.groupId,
+          userId: members.userId,
           displayName: members.displayName,
           role: members.role,
           joinedAt: members.joinedAt,
@@ -116,6 +143,37 @@ export async function memberRoutes(fastify: FastifyInstance) {
         .orderBy(asc(members.joinedAt));
 
       return reply.send(result);
+    },
+  );
+
+  // Get the current authenticated user's member record for this group
+  fastify.get(
+    '/api/v1/groups/:id/me',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string' } },
+        },
+        tags: ['members'],
+        summary: 'Get current member in group',
+      },
+      preHandler: [requireSession, requireGroupMember],
+    },
+    async (request, reply) => {
+      if (!request.member) {
+        return reply.status(401).send({ error: 'Not a member of this group' });
+      }
+      return reply.send({
+        id: request.member.id,
+        groupId: request.member.groupId,
+        userId: request.member.userId,
+        displayName: request.member.displayName,
+        role: request.member.role,
+        joinedAt: request.member.joinedAt,
+        leftAt: request.member.leftAt,
+      });
     },
   );
 

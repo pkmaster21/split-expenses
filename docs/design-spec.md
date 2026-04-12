@@ -1,6 +1,6 @@
 # Tabby — Technical Design Spec
 
-A no-auth expense splitting PWA. Create a group via shareable link, add expenses with flexible splits, and get a simplified breakdown of who owes who — minimizing total settlement transactions.
+An expense splitting PWA with Google OAuth. Sign in, create groups, invite friends via shareable links, add expenses with flexible splits, and get a simplified breakdown of who owes who — minimizing total settlement transactions.
 
 **Primary goal:** Portfolio project and interview talking point, with potential to ship to real users.
 
@@ -8,24 +8,30 @@ A no-auth expense splitting PWA. Create a group via shareable link, add expenses
 
 ## User Flow
 
-1. Alice opens Tabby and creates a new group ("Ski Trip 2026")
-2. She gets a shareable link (e.g., `tabby.app/g/x7Kp9m`)
-3. Alice shares the link with Bob and Carol
-4. Bob opens the link, enters his name, and is added to the group
-5. Alice adds a $150 dinner expense, split equally three ways
-6. Bob adds a $60 gas expense, split between himself and Carol
-7. Everyone sees a live balance dashboard: net debts and a simplified settlement plan
-8. Carol sees she owes Alice $50 and Bob $30 — two transactions to settle up
+1. Alice signs in to Tabby with her Google account
+2. She creates a new group ("Ski Trip 2026") from her home page
+3. She gets a shareable invite link (e.g., `tabby.app/g/x7Kp9m`)
+4. Alice shares the link with Bob and Carol
+5. Bob signs in with Google, opens the link, enters his display name, and joins the group
+6. Alice adds a $150 dinner expense, split equally three ways
+7. Bob adds a $60 gas expense, split between himself and Carol
+8. Everyone sees a live balance dashboard: net debts and a simplified settlement plan
+9. Carol sees she owes Alice $50 and Bob $30 — two transactions to settle up
+10. Back on the home page, each user sees all their groups in one list
 
 ---
 
 ## Core Features (v1)
 
-- **Group creation** via shareable link, no signup or account required
+- **Google OAuth authentication** — sign in with Google, persistent sessions across devices
+- **Multi-group support** — home page listing all your groups, create and join multiple groups
+- **Group creation** via shareable invite link
 - **Flexible expense splitting:** equal, exact amounts, or percentage-based
+- **Expense editing** — edit previously created expenses (owner or admin)
 - **Real-time balance dashboard** showing net debts per person
 - **Debt simplification algorithm** to minimize settlement transactions
 - **Installable PWA** on mobile and desktop via service workers and web manifest
+- **Branding** — Tabby cat logo, cat silhouette background pattern, "Keep your tabs in check." tagline
 
 ---
 
@@ -74,27 +80,40 @@ Balances are computed **on-the-fly** by querying all `ExpenseSplit` records for 
 
 ## Identity & Session Design
 
-**Approach:** Name entry per group + browser-local token
+**Approach:** Google OAuth + dual-path session resolution
 
-When a user opens a group link and enters their name, the server generates a session token stored in the browser as an **httpOnly cookie**. This token "claims" that name within the group.
+Users sign in with their Google account via a standard OAuth 2.0 authorization code flow. On successful authentication, the server creates a `User` record (or updates it if returning) and a `Session` record, then sets an httpOnly cookie containing a random session token.
 
-**Why httpOnly cookie over localStorage:** A cookie is a small piece of data the browser stores and automatically sends with every request to the relevant server — you don't need any JavaScript to manage it, the browser handles it transparently. The `httpOnly` flag on a cookie tells the browser: "don't let JavaScript read or touch this, ever." That matters because of XSS (Cross-Site Scripting) attacks — if a malicious script somehow gets injected into the page, it can read everything in `localStorage` and steal session tokens. An `httpOnly` cookie is completely invisible to JavaScript, so even a successful XSS attack can't extract it. For a no-auth app handling financial data, this is the correct default.
+### OAuth Flow
+
+1. Frontend redirects to `GET /api/v1/auth/google` with an optional `redirect` query param
+2. Server generates a CSRF state token, stores it in a short-lived `oauth_state` cookie alongside the redirect target, and redirects to Google's consent screen
+3. Google redirects back to `GET /api/v1/auth/google/callback` with an authorization code and state
+4. Server validates the CSRF state, exchanges the code for an access token via Google's token endpoint (raw `fetch`, no OAuth library), fetches the user profile, upserts the `users` table, creates a session, sets the session cookie, and redirects to the frontend
+5. Frontend's `AuthProvider` fetches `GET /api/v1/auth/me` on mount to hydrate the current user
+
+### Session Resolution (Dual-Path)
+
+The session middleware resolves requests through two paths for backward compatibility with pre-auth anonymous sessions:
+
+1. **New path (authenticated users):** Cookie → SHA-256 hash → lookup in `sessions` table → join `users` → set `request.user`
+2. **Legacy fallback (anonymous members):** Cookie → SHA-256 hash → lookup in `members.sessionToken` → set `request.member`
+
+For group-scoped routes, if `request.user` is set, the middleware resolves `request.member` by matching `userId + groupId` in the members table. This allows authenticated users to access groups they belong to without any separate per-group token.
+
+### Security
+
+**Why httpOnly cookie:** The `httpOnly` flag prevents JavaScript from accessing the cookie, protecting against XSS attacks. Even if a malicious script is injected, it cannot extract the session token.
 
 **Token storage:** The plaintext token is sent to the browser as an httpOnly cookie. Before being written to the database, it is hashed with SHA-256 — the database never stores the raw token. If the database is compromised, the stored hashes cannot be used to forge sessions.
 
+**CSRF protection:** The OAuth flow uses a state parameter stored in a short-lived cookie to prevent CSRF attacks during the authorization code exchange.
+
 **What this gives us:**
-- No signup friction — just enter a name and go
-- Returning users on the same browser are recognized automatically
-- Prevents casual impersonation (someone else can't add expenses as "Alice" without her token)
-
-**Known limitations:**
-- Switching devices loses your session (no way to reclaim without auth)
-- Clearing browser data loses identity
-- Deliberately sharing your token lets someone impersonate you
-
-**Why not go further:**
-- Magic links add friction that conflicts with the "instant, no-signup" pitch
-- Full auth (OAuth, email/password) is overkill for a trip expense splitter and changes the product identity entirely
+- Persistent identity across devices — sign in on any browser with your Google account
+- Multi-group support — one user account, many groups
+- Strong identity guarantees — Google-verified email, no casual impersonation
+- Backward compatibility — existing anonymous sessions continue working via the legacy fallback path
 
 ---
 
@@ -102,12 +121,31 @@ When a user opens a group link and enters their name, the server generates a ses
 
 ```mermaid
 erDiagram
+    User ||--o{ Session : "has"
+    User ||--o{ Member : "is"
     Group ||--o{ Member : "has"
     Group ||--o{ Expense : "contains"
     Group ||--o{ ActivityLog : "logs"
     Member ||--o{ Expense : "paid_by"
     Expense ||--o{ ExpenseSplit : "split into"
     Member ||--o{ ExpenseSplit : "owes"
+
+    User {
+        UUID id PK
+        string email
+        string name
+        string avatar_url
+        string google_id
+        timestamp created_at
+    }
+
+    Session {
+        UUID id PK
+        UUID user_id FK
+        string token_hash
+        timestamp created_at
+        timestamp expires_at
+    }
 
     Group {
         UUID id PK
@@ -120,6 +158,7 @@ erDiagram
     Member {
         UUID id PK
         UUID group_id FK
+        UUID user_id FK
         string display_name
         enum role
         string session_token
@@ -154,6 +193,21 @@ erDiagram
 ```
 
 ```
+User
+├── id (UUID)
+├── email (unique)
+├── name
+├── avatar_url (nullable — Google profile picture)
+├── google_id (unique — Google OAuth subject ID)
+└── created_at
+
+Session
+├── id (UUID)
+├── user_id (FK → User, cascade delete)
+├── token_hash (unique — SHA-256 of the session token)
+├── created_at
+└── expires_at (30 days from creation)
+
 Group
 ├── id (UUID)
 ├── name ("Ski Trip 2026")
@@ -164,9 +218,10 @@ Group
 Member
 ├── id (UUID)
 ├── group_id (FK → Group, cascade delete)
+├── user_id (FK → User, nullable — null for legacy anonymous members)
 ├── display_name ("Alice")
 ├── role (owner | admin | member)
-├── session_token (hashed)
+├── session_token (hashed, nullable — null for authenticated members)
 ├── joined_at
 └── left_at (nullable — set when member leaves, keeps balance in ledger)
 
@@ -217,7 +272,7 @@ AWS is a deliberate learning goal — demonstrating cloud-native deployment patt
 - **Lambda + API Gateway:** Serverless API layer. Cold start mitigation via provisioned concurrency on critical paths (group creation, expense submission).
 - **Neon (serverless PostgreSQL):** Serverless Postgres accessed via Neon's HTTP driver (`@neondatabase/serverless`). Stateless by design — no connection pool configuration needed, no VPC required. Lambda connects over HTTPS on each invocation; the driver bundles into the Lambda zip with no native binaries. Eliminates the ~$13–15/mo RDS cost after the AWS free tier expires.
 - **Cloudflare Pages:** Static hosting for the React PWA. Cloudflare Pages provides CDN, HTTPS, and SPA routing out of the box — with unlimited free bandwidth and no expiring free tier. Chosen over CloudFront + S3 because AWS's free tier expires after 12 months, and Cloudflare simplifies deployment to a single `wrangler pages deploy` command (no S3 sync + cache invalidation).
-- **Secrets management:** The Neon connection string and other secrets are stored in **AWS SSM Parameter Store** (free tier) and fetched at Lambda cold start, then cached in memory. Never passed as plain environment variables in production. SSM Parameter Store keeps secrets encrypted at rest, access-controlled via IAM, and auditable (you can see who fetched a secret and when). Lambda fetches the value once at cold start and holds it in memory for the lifetime of that instance — it's never written to logs and never appears in the Lambda configuration visible in the console.
+- **Secrets management:** The Neon connection string, Google OAuth credentials (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`), and other secrets are stored in **AWS SSM Parameter Store** (free tier) and fetched at Lambda cold start, then cached in memory. Never passed as plain environment variables in production. SSM Parameter Store keeps secrets encrypted at rest, access-controlled via IAM, and auditable (you can see who fetched a secret and when). Lambda fetches the value once at cold start and holds it in memory for the lifetime of that instance — it's never written to logs and never appears in the Lambda configuration visible in the console.
 - **Infrastructure as Code:** Terraform — more portable than CDK/CloudFormation, widely adopted across the industry, and adds a non-AWS-specific skill to the resume. State is stored in **Terraform Cloud** (free for up to 500 resources) — chosen over an S3 backend to eliminate another expiring AWS free tier dependency while gaining built-in state locking, versioning, and a UI for state inspection. Terraform manages: Lambda function + IAM role, API Gateway (HTTP API), SSM Parameter Store entries.
 
 **Architecture decisions to discuss in interviews:**
@@ -236,21 +291,27 @@ REST API served via Fastify. All routes are prefixed `/api/v1`. OpenAPI docs aut
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `POST` | `/groups` | None | Create a new group; returns group + owner session token |
+| `GET` | `/auth/google` | None | Redirect to Google OAuth consent screen |
+| `GET` | `/auth/google/callback` | None | OAuth callback — exchanges code, creates session, redirects to frontend |
+| `GET` | `/auth/me` | Session | Return current authenticated user or 401 |
+| `POST` | `/auth/logout` | Session | Delete session and clear cookie |
+| `GET` | `/me/groups` | Session | List all groups the authenticated user belongs to |
+| `POST` | `/groups` | Session | Create a new group (creator becomes owner) |
 | `GET` | `/groups/invite/:inviteCode` | None | Fetch group metadata by invite code (for join page) |
-| `POST` | `/groups/invite/:inviteCode/join` | None | Enter a name, receive a session token |
-| `GET` | `/groups/:id` | Session token | Fetch group name and invite code by stable ID (for settings page) |
-| `GET` | `/groups/:id/members` | Session token | List active members |
+| `POST` | `/groups/invite/:inviteCode/join` | Session | Join a group (checks for existing membership) |
+| `GET` | `/groups/:id` | Session | Fetch group name and invite code by stable ID (for settings page) |
+| `GET` | `/groups/:id/me` | Session | Return the current user's member record for this group |
+| `GET` | `/groups/:id/members` | Session | List active members |
 | `DELETE` | `/groups/:id/members/:memberId` | Admin+ | Remove a member |
-| `POST` | `/groups/:id/expenses` | Session token | Add an expense with splits |
-| `GET` | `/groups/:id/expenses` | Session token | List all expenses |
-| `PATCH` | `/groups/:id/expenses/:expenseId` | Session token | Edit an expense (owner of expense or admin) |
-| `DELETE` | `/groups/:id/expenses/:expenseId` | Session token | Delete an expense (owner of expense or admin) |
-| `GET` | `/groups/:id/balances` | Session token | Compute and return net balances + settlement plan. `Balance.netCents` and `Settlement.amount` are **integer cents**. Intentionally includes ghost members (those who left) so the ledger stays accurate after someone leaves. |
+| `POST` | `/groups/:id/expenses` | Session | Add an expense with splits |
+| `GET` | `/groups/:id/expenses` | Session | List all expenses |
+| `PATCH` | `/groups/:id/expenses/:expenseId` | Session | Edit an expense (owner of expense or admin) |
+| `DELETE` | `/groups/:id/expenses/:expenseId` | Session | Delete an expense (owner of expense or admin) |
+| `GET` | `/groups/:id/balances` | Session | Compute and return net balances + settlement plan. `Balance.netCents` and `Settlement.amount` are **integer cents**. Intentionally includes ghost members (those who left) so the ledger stays accurate after someone leaves. |
 | `PATCH` | `/groups/:id/settings` | Owner | Update group name, invite link |
-| `GET` | `/groups/:id/activity` | Session token | Fetch activity log (ownership transfers, etc.) — returns the 50 most recent entries, no pagination |
+| `GET` | `/groups/:id/activity` | Session | Fetch activity log (ownership transfers, etc.) — returns the 50 most recent entries, no pagination |
 
-**Auth model:** Session token passed as an httpOnly cookie. Middleware resolves the token to a `Member` record and attaches it to the request context. Permission checks (role enforcement) happen in route handlers, not the UI.
+**Auth model:** Google OAuth session token passed as an httpOnly cookie. Session middleware resolves the token to a `User` record via the `sessions` table, then resolves the user's `Member` record for group-scoped routes. Legacy anonymous sessions (pre-auth members with `sessionToken` on the `members` table) continue to work via a fallback path. Permission checks (role enforcement) happen in route handlers, not the UI.
 
 ---
 
@@ -273,7 +334,7 @@ Three roles, enforced server-side:
 - Manage group settings (name, expiration, invite link regeneration)
 - Promote members to admin, demote admins back to member
 - Cannot be removed from the group
-- **Ownership recovery:** If the owner loses their session token (new device, cleared storage), ownership automatically transfers to the first available admin, or if no admins exist, to the earliest-joined active member — triggered lazily the next time an owner-level action is attempted (not immediately, to avoid unnecessary promotions). There is no manual claim action; the transfer happens automatically and silently. The transfer is recorded as a group activity feed entry (e.g., "Alice is now the group owner") so members are aware of the change without a separate notification system.
+- **Ownership recovery:** With Google OAuth, ownership is tied to the user's account (not a browser session), so ownership loss from clearing browser data is no longer an issue. If ownership needs to transfer for other reasons, it automatically transfers to the first available admin, or if no admins exist, to the earliest-joined active member — triggered lazily the next time an owner-level action is attempted. The transfer is recorded as a group activity feed entry (e.g., "Alice is now the group owner").
 
 **Admin** (promoted by the owner):
 - Add and remove members
@@ -375,7 +436,9 @@ Focus on making sure core functionality works, not chasing coverage numbers.
 ## Resolved Decisions
 
 - **Leaving a group with outstanding balances:** Ghost member approach — the member is removed from the active list but their name and balance remain in the ledger for accurate settlement math. Implemented via a `left_at` timestamp on the Member table; UI filters them from the active view but includes them in balance calculations.
-- **Session token storage:** httpOnly cookie — not localStorage. httpOnly cookies are inaccessible to JavaScript (XSS-safe); localStorage is not. CSRF risk is acceptable given the no-auth, low-stakes context.
+- **Authentication:** Google OAuth via raw fetch to Google token endpoint (no `@fastify/oauth2` dependency). Chosen over email/password (no password management burden), magic links (requires email infrastructure), and anonymous-only (too limited for multi-group support). CSRF protection via state parameter in OAuth flow.
+- **Session token storage:** httpOnly cookie — not localStorage. httpOnly cookies are inaccessible to JavaScript (XSS-safe); localStorage is not.
+- **Dual-path session resolution:** Backward-compatible design supporting both new authenticated sessions (via `sessions` table) and legacy anonymous sessions (via `members.sessionToken`). No forced migration — anonymous members remain functional alongside authenticated members.
 - **Group expiration:** Activity-based (90 days from last expense), not creation-based. Simpler, better product behavior, removes the need for a "never expires" settings toggle.
 - **Financial arithmetic:** Integer cents internally, stored as `DECIMAL(10,2)` in PostgreSQL. Never `FLOAT` — avoids rounding errors for financial data.
 - **Abuse mitigation:** Simple caps for v1 — max 50 members per group, $10,000 per individual expense, 30 expense submissions per hour per member. No reporting UI — group owner can remove bad actors.

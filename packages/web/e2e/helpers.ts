@@ -1,6 +1,22 @@
 import { Page, Browser, BrowserContext, expect } from '@playwright/test';
 
 /**
+ * Log in as a test user via the test-only auth bypass.
+ */
+export async function login(
+  page: Page,
+  opts: { name?: string; email?: string } = {},
+): Promise<void> {
+  const res = await page.request.post('/api/v1/auth/test-login', {
+    data: {
+      name: opts.name ?? 'Test User',
+      email: opts.email,
+    },
+  });
+  expect(res.ok()).toBe(true);
+}
+
+/**
  * Create a group and return the group URL path and invite URL.
  */
 export async function createGroup(
@@ -10,8 +26,7 @@ export async function createGroup(
   const groupName = `[E2E] ${opts.groupName ?? 'Test Group'}`;
   const displayName = opts.displayName ?? 'Alice';
 
-  await page.goto('/');
-  await page.getByRole('link', { name: 'Create a group' }).click();
+  await page.goto('/create');
   await page.getByLabel('Group name').fill(groupName);
   await page.getByLabel('Your name').fill(displayName);
   await page.getByRole('button', { name: 'Create group' }).click();
@@ -36,7 +51,7 @@ export async function getInviteUrl(page: Page, groupId: string): Promise<string>
 }
 
 /**
- * Join a group in a new browser context and return the page + context.
+ * Join a group as a guest in a new browser context (no login required).
  */
 export async function joinGroup(
   browser: Browser,

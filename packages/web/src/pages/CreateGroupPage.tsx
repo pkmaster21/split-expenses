@@ -1,13 +1,18 @@
 import { useState, FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../lib/api.js';
+import { queryKeys } from '../lib/queryKeys.js';
+import { useAuth } from '../lib/auth.js';
 import { Button } from '../components/Button.js';
 import { Input } from '../components/Input.js';
 
 export default function CreateGroupPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [groupName, setGroupName] = useState('');
-  const [displayName, setDisplayName] = useState('');
+  const [displayName, setDisplayName] = useState(user?.name ?? '');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -16,8 +21,11 @@ export default function CreateGroupPage() {
     setError('');
     setLoading(true);
     try {
-      const { group, member } = await api.createGroup({ name: groupName.trim(), displayName: displayName.trim() });
-      localStorage.setItem(`member_hint_${group.id}`, member.id);
+      const { group } = await api.createGroup({
+        name: groupName.trim(),
+        displayName: displayName.trim() || undefined,
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.myGroups() });
       navigate(`/groups/${group.id}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong');
