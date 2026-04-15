@@ -610,9 +610,10 @@ describe('Google OAuth guest session merge', () => {
       }
     }
 
-    // Guest member should now be soft-deleted
+    // Guest member should now be soft-deleted (leftAt set, record still exists)
     const [guestMember] = await db.select().from(members).where(eq(members.sessionToken, guestHash));
-    expect(guestMember).toBeUndefined(); // sessionToken was not cleared but leftAt set — token no longer matches active query
+    expect(guestMember).toBeDefined();
+    expect(guestMember!.leftAt).not.toBeNull();
     const allGroupMembers = await db.select().from(members).where(eq(members.groupId, group.id));
     const active = allGroupMembers.filter((m) => !m.leftAt);
     expect(active).toHaveLength(1);
