@@ -227,7 +227,6 @@ export default function DashboardPage() {
                 const canEdit =
                   currentMember &&
                   (exp.paidBy === currentMember.id ||
-                    currentMember.role === 'owner' ||
                     currentMember.role === 'owner');
                 return (
                   <div key={exp.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
