@@ -25,7 +25,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     reply.setCookie('oauth_state', JSON.stringify({ state, redirect: redirect ?? '/' }), {
       httpOnly: true,
       path: '/',
-      sameSite: process.env['NODE_ENV'] === 'prod' ? 'none' : 'lax',
+      sameSite: 'lax',
       secure: process.env['NODE_ENV'] === 'prod',
       maxAge: 600, // 10 minutes
     });
@@ -170,7 +170,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     reply.setCookie(SESSION_COOKIE, sessionToken, {
       httpOnly: true,
       path: '/',
-      sameSite: process.env['NODE_ENV'] === 'prod' ? 'none' : 'lax',
+      sameSite: 'lax',
       secure: process.env['NODE_ENV'] === 'prod',
       maxAge: 60 * 60 * 24 * 30, // 30 days
     });

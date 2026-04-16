@@ -50,16 +50,30 @@ export const onRequest: (context: { request: Request; env: Env; params: Record<s
     redirect: 'manual',
   });
 
-  // Forward response headers, stripping hop-by-hop
+  // Forward response headers, stripping hop-by-hop.
+  // Set-Cookie must be handled separately via getAll() because forEach() in the
+  // Cloudflare Workers Headers implementation collapses multiple Set-Cookie values
+  // into a single comma-joined string, which breaks cookie parsing.
   const resHeaders = new Headers();
   upstream.headers.forEach((value, key) => {
+    if (key.toLowerCase() === 'set-cookie') return;
     if (!HOP_BY_HOP.has(key.toLowerCase())) {
       resHeaders.append(key, value);
     }
   });
 
-  return new Response(upstream.body, {
+  const response = new Response(upstream.body, {
     status: upstream.status,
     headers: resHeaders,
   });
+
+  // Append each Set-Cookie individually to preserve separate header entries.
+  // getAll() is a Cloudflare Workers extension to the Headers API that returns
+  // an array of values for a given header name, preserving duplicates.
+  const cookies = (upstream.headers as unknown as { getAll(name: string): string[] }).getAll('set-cookie');
+  for (const cookie of cookies) {
+    response.headers.append('set-cookie', cookie);
+  }
+
+  return response;
 };
