@@ -10,6 +10,7 @@ import { Badge } from '../components/Badge.js';
 import { AddExpenseModal } from '../components/AddExpenseModal.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import { TabbyLogo } from '../components/TabbyLogo.js';
+import { appPageStyle } from '../components/CatBackground.js';
 
 function fmt(cents: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
@@ -62,14 +63,17 @@ export default function DashboardPage() {
     queryFn: () => api.getCurrentMember(id!),
   });
 
+  const groupQuery = useQuery({
+    queryKey: queryKeys.group(id!),
+    queryFn: () => api.getGroup(id!),
+  });
+
   const members: Member[] = membersQuery.data ?? [];
   const expenses: Expense[] = expensesQuery.data ?? [];
   const balances: BalancesResponse | null = balancesQuery.data ?? null;
   const currentMember: Member | null = currentMemberQuery.data ?? null;
+  const groupName = groupQuery.data?.name ?? '';
 
-  // Build a name map that includes ghost (soft-deleted) members from the
-  // balances response — active members alone won't cover settlement participants
-  // who left the group with outstanding debts.
   const memberNames = new Map<string, string>(
     members.map((m) => [m.id, m.displayName]),
   );
@@ -81,7 +85,6 @@ export default function DashboardPage() {
     }
   }
 
-  // Distinguish 401 (session gone) from 410 (group expired) for distinct UI states
   const anyError = membersQuery.error ?? expensesQuery.error ?? balancesQuery.error;
   const isExpired = !!anyError && (anyError as ApiError)?.status === 410;
   const sessionError = !!anyError && (anyError as ApiError)?.status === 401;
@@ -126,8 +129,8 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin h-8 w-8 border-4 border-indigo-600 border-t-transparent rounded-full" />
+      <div className="min-h-screen flex items-center justify-center bg-[#FAFAF8]">
+        <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -135,68 +138,69 @@ export default function DashboardPage() {
   const canAddExpense = isOnline && !isExpired && currentMember;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div className="min-h-screen" style={appPageStyle}>
+      <header className="bg-white border-b border-stone-100 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <TabbyLogo size={28} />
+          <div className="flex items-center gap-3 min-w-0">
+            <Link to="/" className="shrink-0 hover:opacity-80 transition-opacity">
+              <TabbyLogo size={24} />
             </Link>
-            <Link to="/" className="text-indigo-600 hover:underline text-sm">← Home</Link>
-            <h1 className="text-lg font-bold text-gray-900">Group Dashboard</h1>
+            <h1 className="text-base font-semibold text-stone-900 truncate">{groupName}</h1>
             {!isOnline && (
-              <p className="text-xs text-yellow-600">
-                Offline — showing cached data
-                {lastUpdated && ` from ${lastUpdated.toLocaleTimeString()}`}
-              </p>
+              <span className="text-xs text-amber-600 shrink-0">
+                Offline{lastUpdated && ` · ${lastUpdated.toLocaleTimeString()}`}
+              </span>
             )}
           </div>
-          <div className="flex gap-2">
-            <Link to={`/groups/${id}/settings`}>
-              <Button variant="ghost" size="sm" aria-label="Settings">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </Button>
-            </Link>
-          </div>
+          <Link to={`/groups/${id}/settings`} className="shrink-0">
+            <Button variant="ghost" size="sm" aria-label="Settings">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round"
+                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </Button>
+          </Link>
         </div>
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
         {sessionError && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
             Session expired. Open the group link again to rejoin.
           </div>
         )}
         {isExpired && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
             This group has expired (90 days of inactivity). Balances are read-only.
           </div>
         )}
 
+        {/* Members */}
         <section>
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Members</h2>
-          <div className="flex flex-wrap gap-3">
+          <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-3">Members</h2>
+          <div className="flex flex-wrap gap-2">
             {members.map((m) => (
-              <div key={m.id} className="flex items-center gap-2 bg-white rounded-full px-3 py-1.5 shadow-sm border border-gray-100">
+              <div key={m.id} className="flex items-center gap-2 bg-white rounded-full px-3 py-1.5 ring-1 ring-black/[0.06]">
                 <Avatar name={m.displayName} size="sm" />
-                <span className="text-sm font-medium text-gray-700">{m.displayName}</span>
-                {m.role !== 'member' && <Badge variant="indigo">{m.role}</Badge>}
+                <span className="text-sm font-medium text-stone-700">{m.displayName}</span>
+                {m.role !== 'member' && <Badge variant="orange">{m.role}</Badge>}
               </div>
             ))}
           </div>
         </section>
 
-        <div className="flex gap-2 border-b border-gray-200">
+        {/* Pill tabs */}
+        <div className="bg-stone-100 rounded-xl p-1 flex gap-1">
           {(['expenses', 'balances'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors capitalize
-                ${activeTab === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+              className={`flex-1 rounded-lg px-4 py-1.5 text-sm font-medium transition-colors capitalize
+                ${activeTab === tab
+                  ? 'bg-orange-500 text-white shadow-sm'
+                  : 'text-stone-500 hover:text-stone-700'
+                }`}
             >
               {tab}
             </button>
@@ -206,19 +210,19 @@ export default function DashboardPage() {
         {activeTab === 'expenses' && (
           <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Expenses</h2>
+              <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wider">Expenses</h2>
               {canAddExpense && (
                 <Button size="sm" onClick={() => setShowAddExpense(true)}>
                   + Add expense
                 </Button>
               )}
               {!isOnline && (
-                <span className="text-xs text-gray-400">Offline — add expense unavailable</span>
+                <span className="text-xs text-stone-400">Offline — unavailable</span>
               )}
             </div>
 
             {expenses.length === 0 && (
-              <p className="text-sm text-gray-400 text-center py-8">No expenses yet. Add the first one!</p>
+              <p className="text-sm text-stone-400 text-center py-12">No expenses yet. Add the first one!</p>
             )}
 
             <div className="space-y-2">
@@ -226,41 +230,43 @@ export default function DashboardPage() {
                 const payerName = memberNames.get(exp.paidBy) ?? 'Unknown';
                 const canEdit =
                   currentMember &&
-                  (exp.paidBy === currentMember.id ||
-                    currentMember.role === 'owner');
+                  (exp.paidBy === currentMember.id || currentMember.role === 'owner');
                 return (
-                  <div key={exp.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-                    <div className="flex items-start justify-between gap-2">
+                  <div key={exp.id} className="bg-white rounded-2xl p-4 ring-1 ring-black/[0.06]">
+                    <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 truncate">{exp.description}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          {payerName} paid · {fmtDate(exp.createdAt)} ·{' '}
+                        <p className="font-medium text-stone-900 truncate">{exp.description}</p>
+                        <p className="text-xs text-stone-400 mt-0.5 flex items-center gap-1.5">
+                          <span>{payerName} paid</span>
+                          <span>·</span>
+                          <span>{fmtDate(exp.createdAt)}</span>
+                          <span>·</span>
                           <Badge variant="gray">{exp.splitType}</Badge>
                         </p>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="font-semibold text-gray-900">
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="font-semibold text-stone-900">
                           ${Number(exp.amount).toFixed(2)}
                         </span>
                         {canEdit && (
                           <>
                             <button
                               onClick={() => setEditingExpense(exp)}
-                              className="text-gray-300 hover:text-indigo-500 transition-colors"
+                              className="p-1.5 text-stone-300 hover:text-orange-500 transition-colors rounded-lg"
                               aria-label="Edit expense"
                             >
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                               </svg>
                             </button>
                             <button
                               onClick={() => setPendingDeleteId(exp.id)}
                               disabled={deleteExpenseMutation.isPending}
-                              className="text-gray-300 hover:text-red-400 transition-colors disabled:opacity-50"
+                              className="p-1.5 text-stone-300 hover:text-red-400 transition-colors rounded-lg disabled:opacity-50"
                               aria-label="Delete expense"
                             >
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                               </svg>
                             </button>
                           </>
@@ -275,47 +281,49 @@ export default function DashboardPage() {
         )}
 
         {activeTab === 'balances' && balances && (
-          <section className="space-y-4">
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Net balances</h2>
-            <div className="space-y-2">
-              {balances.balances.map((b) => (
-                <div key={b.memberId} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar name={b.displayName} />
-                    <span className="font-medium text-gray-900">{b.displayName}</span>
+          <section className="space-y-5">
+            <div>
+              <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-3">Net balances</h2>
+              <div className="space-y-2">
+                {balances.balances.map((b) => (
+                  <div key={b.memberId} className="bg-white rounded-2xl p-4 ring-1 ring-black/[0.06] flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Avatar name={b.displayName} />
+                      <span className="font-medium text-stone-900">{b.displayName}</span>
+                    </div>
+                    <span className={`font-semibold text-sm ${b.netCents >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {b.netCents >= 0 ? '+' : '-'}{fmt(b.netCents)}
+                    </span>
                   </div>
-                  <span className={`font-semibold text-sm ${b.netCents >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {b.netCents >= 0 ? '+' : '-'}{fmt(b.netCents)}
-                  </span>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
 
             {balances.settlements.length > 0 && (
-              <>
-                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider pt-2">Settlement plan</h2>
+              <div>
+                <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-3">Settle up</h2>
                 <div className="space-y-2">
                   {balances.settlements.map((s) => {
                     const fromName = memberNames.get(s.from) ?? 'Unknown';
                     const toName = memberNames.get(s.to) ?? 'Unknown';
                     return (
-                      <div key={`${s.from}-${s.to}`} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex items-center gap-3">
+                      <div key={`${s.from}-${s.to}`} className="bg-white rounded-2xl p-4 ring-1 ring-black/[0.06] flex items-center gap-3">
                         <Avatar name={fromName} size="sm" />
-                        <span className="text-sm text-gray-700 flex-1">
+                        <span className="text-sm text-stone-700 flex-1">
                           <span className="font-medium">{fromName}</span>
-                          {' pays '}
+                          <span className="text-stone-400"> pays </span>
                           <span className="font-medium">{toName}</span>
                         </span>
-                        <span className="font-semibold text-gray-900">${(s.amountCents / 100).toFixed(2)}</span>
+                        <span className="font-semibold text-stone-900">${(s.amountCents / 100).toFixed(2)}</span>
                       </div>
                     );
                   })}
                 </div>
-              </>
+              </div>
             )}
 
             {balances.settlements.length === 0 && (
-              <p className="text-sm text-gray-400 text-center py-4">All settled up! 🎉</p>
+              <p className="text-sm text-stone-400 text-center py-6">All settled up!</p>
             )}
           </section>
         )}
