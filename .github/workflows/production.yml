@@ -110,7 +110,7 @@ jobs:
       - name: Build React PWA
         run: npm run build --workspace=packages/web
         env:
-          VITE_API_URL: ${{ secrets.PROD_API_GATEWAY_URL }}
+          VITE_API_URL: ""
           VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
       - name: Deploy to Cloudflare Pages
@@ -118,4 +118,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy packages/web/dist --project-name=tabby --branch=main
+          command: pages deploy packages/web/dist --project-name=tabby --branch=main --functions-dir=packages/web/functions
+        env:
+          API_URL: ${{ secrets.PROD_API_GATEWAY_URL }}
