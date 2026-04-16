@@ -8,6 +8,7 @@ import { Button } from '../components/Button.js';
 import { Input } from '../components/Input.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import { TabbyLogo } from '../components/TabbyLogo.js';
+import { appPageStyle } from '../components/CatBackground.js';
 
 export default function SettingsPage() {
   const { id } = useParams<{ id: string }>();
@@ -18,8 +19,6 @@ export default function SettingsPage() {
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
   const [pendingRemoveMemberId, setPendingRemoveMemberId] = useState<string | null>(null);
 
-  // Fetch group data on mount — fixes the bug where inviteCode was only
-  // available after clicking "Regenerate"
   const groupQuery = useQuery({
     queryKey: queryKeys.group(id!),
     queryFn: () => api.getGroup(id!),
@@ -44,7 +43,6 @@ export default function SettingsPage() {
   const activityLog: ActivityLogEntry[] = activityQuery.data ?? [];
   const currentMember: Member | null = currentMemberQuery.data ?? null;
 
-  // Controlled input for group name — initialized from query data
   const [name, setName] = useState('');
   useEffect(() => {
     if (groupQuery.data?.name && !name) setName(groupQuery.data.name);
@@ -113,26 +111,26 @@ export default function SettingsPage() {
   const isOwner = currentMember?.role === 'owner';
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200">
+    <div className="min-h-screen" style={appPageStyle}>
+      <header className="bg-white border-b border-stone-100 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Link to="/" className="flex items-center hover:opacity-80 transition-opacity">
-            <TabbyLogo size={28} />
+          <Link to="/" className="hover:opacity-80 transition-opacity">
+            <TabbyLogo size={24} />
           </Link>
-          <Link to={`/groups/${id}`} className="text-indigo-600 hover:underline text-sm">
+          <Link to={`/groups/${id}`} className="text-sm text-orange-500 hover:text-orange-600 font-medium">
             ← Back
           </Link>
-          <h1 className="text-lg font-bold text-gray-900">Group Settings</h1>
+          <h1 className="text-base font-semibold text-stone-900">Settings</h1>
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+      <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
         {error && <p className="text-sm text-red-600">{error}</p>}
         {success && <p className="text-sm text-green-600">{success}</p>}
 
         {isOwner && (
-          <section className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 space-y-4">
-            <h2 className="font-semibold text-gray-900">Group name</h2>
+          <section className="bg-white rounded-2xl p-5 ring-1 ring-black/[0.06] space-y-4">
+            <h2 className="font-semibold text-stone-900">Group name</h2>
             <form onSubmit={handleSaveName} className="flex gap-3">
               <Input
                 value={name}
@@ -148,15 +146,15 @@ export default function SettingsPage() {
           </section>
         )}
 
-        <section className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 space-y-3">
-          <h2 className="font-semibold text-gray-900">Invite link</h2>
+        <section className="bg-white rounded-2xl p-5 ring-1 ring-black/[0.06] space-y-3">
+          <h2 className="font-semibold text-stone-900">Invite link</h2>
           {inviteUrl ? (
             <>
               <div className="flex gap-2">
                 <input
                   readOnly
                   value={inviteUrl}
-                  className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm bg-gray-50 text-gray-600"
+                  className="flex-1 rounded-xl border border-stone-200 px-3.5 py-2.5 text-sm bg-stone-50 text-stone-500"
                   aria-label="Invite link"
                 />
                 <Button variant="secondary" onClick={handleCopy}>
@@ -169,32 +167,33 @@ export default function SettingsPage() {
                   size="sm"
                   onClick={() => setShowRegenerateConfirm(true)}
                   loading={updateSettingsMutation.isPending}
+                  className="text-stone-400"
                 >
                   Regenerate link
                 </Button>
               )}
             </>
           ) : (
-            <p className="text-sm text-gray-400">Loading invite link…</p>
+            <p className="text-sm text-stone-400">Loading invite link…</p>
           )}
         </section>
 
         {isOwner && (
-          <section className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 space-y-3">
-            <h2 className="font-semibold text-gray-900">Members</h2>
+          <section className="bg-white rounded-2xl p-5 ring-1 ring-black/[0.06] space-y-3">
+            <h2 className="font-semibold text-stone-900">Members</h2>
             <div className="space-y-2">
               {members.map((m) => (
-                <div key={m.id} className="flex items-center justify-between">
-                  <span className="text-sm text-gray-700">
+                <div key={m.id} className="flex items-center justify-between py-1">
+                  <span className="text-sm text-stone-700">
                     {m.displayName}{' '}
-                    <span className="text-gray-400 capitalize">({m.role})</span>
+                    <span className="text-stone-400 capitalize">({m.role})</span>
                   </span>
                   {m.id !== currentMember?.id && m.role !== 'owner' && (
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => setPendingRemoveMemberId(m.id)}
-                      className="text-red-500 hover:text-red-700"
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50"
                     >
                       Remove
                     </Button>
@@ -206,18 +205,18 @@ export default function SettingsPage() {
         )}
 
         {activityLog.length > 0 && (
-          <section className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 space-y-3">
-            <h2 className="font-semibold text-gray-900">Activity</h2>
-            <div className="space-y-2">
+          <section className="bg-white rounded-2xl p-5 ring-1 ring-black/[0.06] space-y-3">
+            <h2 className="font-semibold text-stone-900">Activity</h2>
+            <div className="space-y-3">
               {activityLog.map((entry) => (
                 <div key={entry.id} className="flex items-start gap-3">
-                  <span className="text-xs text-gray-400 shrink-0 mt-0.5">
+                  <span className="text-xs text-stone-400 shrink-0 mt-0.5">
                     {new Date(entry.createdAt).toLocaleDateString('en-US', {
                       month: 'short',
                       day: 'numeric',
                     })}
                   </span>
-                  <span className="text-sm text-gray-700">{entry.message}</span>
+                  <span className="text-sm text-stone-600">{entry.message}</span>
                 </div>
               ))}
             </div>

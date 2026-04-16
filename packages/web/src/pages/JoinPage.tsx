@@ -6,6 +6,8 @@ import { queryKeys } from '../lib/queryKeys.js';
 import { useAuth } from '../lib/auth.js';
 import { Button } from '../components/Button.js';
 import { Input } from '../components/Input.js';
+import { TabbyLogo } from '../components/TabbyLogo.js';
+import { appPageStyle } from '../components/CatBackground.js';
 
 export default function JoinPage() {
   const { inviteCode } = useParams<{ inviteCode: string }>();
@@ -20,7 +22,6 @@ export default function JoinPage() {
   const [fetching, setFetching] = useState(true);
   const [expired, setExpired] = useState(false);
 
-  // Pre-fill display name once auth resolves
   useEffect(() => {
     if (!authLoading && user && !displayName) {
       setDisplayName(user.name);
@@ -58,36 +59,37 @@ export default function JoinPage() {
 
   if (fetching) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin h-8 w-8 border-4 border-indigo-600 border-t-transparent rounded-full" />
+      <div className="min-h-screen flex items-center justify-center" style={appPageStyle}>
+        <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full" />
       </div>
     );
   }
 
   if (error && !groupName) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="text-center">
-          <p className="text-lg text-red-600">{error}</p>
-          <a href="/" className="mt-4 inline-block text-indigo-600 hover:underline">Go home</a>
+      <div className="min-h-screen flex items-center justify-center p-6" style={appPageStyle}>
+        <div className="text-center space-y-4">
+          <TabbyLogo size={48} className="mx-auto" />
+          <p className="text-lg text-stone-700">Group not found.</p>
+          <p className="text-sm text-stone-400">This invite link may be invalid or expired.</p>
+          <a href="/" className="inline-block text-orange-500 hover:text-orange-600 text-sm font-medium">← Go home</a>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6">
-      <div className="max-w-md w-full space-y-6">
-        <div>
-          <div className="text-3xl mb-2">👋</div>
-          <h1 className="text-2xl font-bold text-gray-900">Join {groupName}</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            {memberCount} {memberCount === 1 ? 'person' : 'people'} already in this group.
+    <div className="min-h-screen flex flex-col items-center justify-center p-6" style={appPageStyle}>
+      <div className="max-w-md w-full space-y-8">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold text-stone-900">Join {groupName}</h1>
+          <p className="text-sm text-stone-400">
+            {memberCount} {memberCount === 1 ? 'person' : 'people'} already in this group
           </p>
         </div>
 
         {expired ? (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
             This group has expired and is no longer accepting new members.
           </div>
         ) : (
@@ -102,11 +104,11 @@ export default function JoinPage() {
               autoFocus={!user}
             />
             {!user && !authLoading && (
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-stone-400">
                 Joining as a guest.{' '}
                 <Link
                   to={`/login?redirect=/g/${inviteCode}`}
-                  className="text-indigo-500 hover:underline"
+                  className="text-orange-500 hover:text-orange-600 font-medium"
                 >
                   Sign in with Google
                 </Link>{' '}

@@ -127,15 +127,18 @@ export function AddExpenseModal({
         />
 
         <div>
-          <label className="text-sm font-medium text-gray-700 block mb-1">Split type</label>
-          <div className="flex gap-2">
+          <label className="text-sm font-medium text-stone-700 block mb-2">Split type</label>
+          <div className="bg-stone-100 rounded-xl p-1 flex gap-1">
             {(['equal', 'exact', 'percentage'] as SplitType[]).map((t) => (
               <button
                 key={t}
                 type="button"
                 onClick={() => setSplitType(t)}
-                className={`flex-1 py-1.5 rounded-lg text-sm font-medium border transition-colors
-                  ${splitType === t ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-colors capitalize
+                  ${splitType === t
+                    ? 'bg-orange-500 text-white shadow-sm'
+                    : 'text-stone-500 hover:text-stone-700'
+                  }`}
               >
                 {t.charAt(0).toUpperCase() + t.slice(1)}
               </button>
@@ -144,7 +147,7 @@ export function AddExpenseModal({
         </div>
 
         <div>
-          <label className="text-sm font-medium text-gray-700 block mb-2">Split between</label>
+          <label className="text-sm font-medium text-stone-700 block mb-2">Split between</label>
           <div className="space-y-2">
             {members.map((m) => (
               <div key={m.id} className="flex items-center gap-3">
@@ -153,11 +156,11 @@ export function AddExpenseModal({
                   id={`member-${m.id}`}
                   checked={selectedIds.includes(m.id)}
                   onChange={() => toggleMember(m.id)}
-                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                  className="rounded border-stone-300 text-orange-500 focus:ring-orange-500"
                   aria-label={m.displayName}
                 />
-                <label htmlFor={`member-${m.id}`} className="flex-1 text-sm text-gray-700">
-                  {m.displayName} {m.id === currentMemberId && <span className="text-gray-400">(you)</span>}
+                <label htmlFor={`member-${m.id}`} className="flex-1 text-sm text-stone-700">
+                  {m.displayName} {m.id === currentMemberId && <span className="text-stone-400">(you)</span>}
                 </label>
                 {splitType === 'exact' && selectedIds.includes(m.id) && (
                   <input
@@ -166,7 +169,7 @@ export function AddExpenseModal({
                     min="0"
                     value={exactAmounts[m.id] ?? ''}
                     onChange={(e) => setExactAmounts((prev) => ({ ...prev, [m.id]: e.target.value }))}
-                    className="w-24 rounded border border-gray-300 px-2 py-1 text-sm focus:ring-2 focus:ring-indigo-500"
+                    className="w-24 rounded-lg border border-stone-200 px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                     placeholder="$0.00"
                     aria-label={`Amount for ${m.displayName}`}
                   />
@@ -179,7 +182,7 @@ export function AddExpenseModal({
                     max="100"
                     value={percentages[m.id] ?? ''}
                     onChange={(e) => setPercentages((prev) => ({ ...prev, [m.id]: e.target.value }))}
-                    className="w-20 rounded border border-gray-300 px-2 py-1 text-sm focus:ring-2 focus:ring-indigo-500"
+                    className="w-20 rounded-lg border border-stone-200 px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                     placeholder="0%"
                     aria-label={`Percentage for ${m.displayName}`}
                   />

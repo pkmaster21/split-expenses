@@ -6,7 +6,7 @@ import { queryKeys } from '../lib/queryKeys.js';
 import { Button } from '../components/Button.js';
 import { Badge } from '../components/Badge.js';
 import { TabbyLogo } from '../components/TabbyLogo.js';
-import { CatBackground } from '../components/CatBackground.js';
+import { CatBackground, appPageStyle } from '../components/CatBackground.js';
 
 export default function HomePage() {
   const { user, isLoading: authLoading, login } = useAuth();
@@ -22,14 +22,16 @@ export default function HomePage() {
   // Show landing page only when we're certain there's no session at all
   if (!authLoading && !groupsQuery.isLoading && !user && groups.length === 0) {
     return (
-      <CatBackground className="flex flex-col items-center justify-center p-6 bg-gradient-to-b from-indigo-50 to-white">
-        <div className="max-w-md w-full text-center space-y-8">
-          <div className="space-y-3">
+      <CatBackground className="flex flex-col items-center justify-center px-6">
+        <div className="max-w-sm w-full text-center space-y-10">
+          <div className="space-y-4">
             <div className="flex justify-center">
               <TabbyLogo size={72} />
             </div>
-            <h1 className="text-4xl font-bold text-indigo-600">Tabby</h1>
-            <p className="text-gray-500">Keep your tabs in check.</p>
+            <div>
+              <h1 className="text-4xl font-extrabold text-stone-900 tracking-tight">Tabby</h1>
+              <p className="mt-2 text-stone-500">Settling the tab, purr-fectly.</p>
+            </div>
           </div>
 
           <div className="space-y-3">
@@ -41,23 +43,9 @@ export default function HomePage() {
             <Button size="lg" className="w-full" variant="secondary" onClick={() => login('/')}>
               Sign in with Google
             </Button>
-            <p className="text-sm text-gray-400">
-              Have an invite link? Open it directly — no sign-in needed.
+            <p className="text-sm text-stone-400">
+              Have an invite link? Open it to join directly.
             </p>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4 pt-4">
-            {[
-              { icon: '🔗', title: 'Share a link', desc: 'Invite friends instantly' },
-              { icon: '📊', title: 'Track expenses', desc: 'Equal, exact, or % splits' },
-              { icon: '✅', title: 'Settle up', desc: 'Fewest transactions possible' },
-            ].map((item) => (
-              <div key={item.title} className="text-center space-y-1">
-                <div className="text-2xl">{item.icon}</div>
-                <div className="text-sm font-medium text-gray-700">{item.title}</div>
-                <div className="text-xs text-gray-400">{item.desc}</div>
-              </div>
-            ))}
           </div>
         </div>
       </CatBackground>
@@ -67,38 +55,36 @@ export default function HomePage() {
   // Loading state
   if (authLoading || groupsQuery.isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin h-8 w-8 border-4 border-indigo-600 border-t-transparent rounded-full" />
+      <div className="min-h-screen flex items-center justify-center bg-[#FAFAF8]">
+        <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full" />
       </div>
     );
   }
 
   // Logged in — show group list
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200">
+    <div className="min-h-screen" style={appPageStyle}>
+      <header className="bg-white border-b border-stone-100 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <TabbyLogo size={28} />
-            <h1 className="text-lg font-bold text-indigo-600">Tabby</h1>
+            <span className="text-base font-bold text-stone-900">Tabby</span>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-500">{user?.name}</span>
-          </div>
+          <span className="text-sm text-stone-400">{user?.name}</span>
         </div>
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Your groups</h2>
+          <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wider">Your groups</h2>
           <Link to="/create">
             <Button size="sm">+ New group</Button>
           </Link>
         </div>
 
         {groups.length === 0 && (
-          <div className="text-center py-12 space-y-4">
-            <p className="text-gray-400">You&apos;re not in any groups yet.</p>
+          <div className="text-center py-16 space-y-4">
+            <p className="text-stone-400">You&apos;re not in any groups yet.</p>
             <Link to="/create">
               <Button>Create your first group</Button>
             </Link>
@@ -110,16 +96,16 @@ export default function HomePage() {
             <Link
               key={item.group.id}
               to={`/groups/${item.group.id}`}
-              className="block bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:border-indigo-200 transition-colors"
+              className="block bg-white rounded-2xl p-4 ring-1 ring-black/[0.06] hover:ring-orange-200 transition-all"
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-medium text-gray-900">{item.group.name}</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <h3 className="font-semibold text-stone-900">{item.group.name}</h3>
+                  <p className="text-xs text-stone-400 mt-0.5">
                     {item.memberCount} {item.memberCount === 1 ? 'member' : 'members'}
                   </p>
                 </div>
-                <Badge variant="indigo">{item.role}</Badge>
+                {item.role !== 'member' && <Badge variant="orange">{item.role}</Badge>}
               </div>
             </Link>
           ))}
