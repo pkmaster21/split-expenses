@@ -31,7 +31,7 @@ An expense splitting PWA with Google OAuth. Sign in, create groups, invite frien
 - **Real-time balance dashboard** showing net debts per person
 - **Debt simplification algorithm** to minimize settlement transactions
 - **Installable PWA** on mobile and desktop via service workers and web manifest
-- **Branding** — Tabby cat logo, cat silhouette background pattern, "Keep your tabs in check." tagline
+- **Branding** — Tabby cat logo (tab/receipt silhouette with cat-ear peaks and cat face), paw print background pattern, "Settling the tab, purr-fectly." tagline
 
 ---
 

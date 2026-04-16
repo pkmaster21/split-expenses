@@ -3,16 +3,17 @@ interface AvatarProps {
   size?: 'sm' | 'md' | 'lg';
 }
 
+// Warm color pool — no cool blues or grays
 const colors = [
-  'bg-red-400',
   'bg-orange-400',
   'bg-amber-400',
-  'bg-green-400',
-  'bg-teal-400',
-  'bg-blue-400',
-  'bg-indigo-400',
-  'bg-purple-400',
+  'bg-rose-400',
   'bg-pink-400',
+  'bg-teal-500',
+  'bg-violet-400',
+  'bg-emerald-500',
+  'bg-cyan-500',
+  'bg-indigo-400',
 ];
 
 const sizeClasses = {
@@ -38,7 +39,7 @@ export function Avatar({ name, size = 'md' }: AvatarProps) {
 
   return (
     <div
-      className={`${sizeClasses[size]} ${colorForName(name)} rounded-full flex items-center justify-center text-white font-semibold select-none`}
+      className={`${sizeClasses[size]} ${colorForName(name)} rounded-full flex items-center justify-center text-white font-semibold select-none shrink-0`}
       aria-label={name}
     >
       {initials}

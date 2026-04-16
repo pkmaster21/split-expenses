@@ -5,6 +5,7 @@ import { api, ApiError } from '../lib/api.js';
 import { queryKeys } from '../lib/queryKeys.js';
 import { useAuth } from '../lib/auth.js';
 import { Button } from '../components/Button.js';
+import { appPageStyle } from '../components/CatBackground.js';
 import { Input } from '../components/Input.js';
 
 export default function CreateGroupPage() {
@@ -35,12 +36,12 @@ export default function CreateGroupPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6">
-      <div className="max-w-md w-full space-y-6">
-        <div>
-          <Link to="/" className="text-sm text-indigo-600 hover:underline">← Back</Link>
-          <h1 className="mt-4 text-2xl font-bold text-gray-900">Create a group</h1>
-          <p className="mt-1 text-sm text-gray-500">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6" style={appPageStyle}>
+      <div className="max-w-md w-full space-y-8">
+        <div className="space-y-1">
+          <Link to="/" className="text-sm text-orange-500 hover:text-orange-600 font-medium">← Back</Link>
+          <h1 className="mt-3 text-2xl font-bold text-stone-900">Create a group</h1>
+          <p className="text-sm text-stone-400">
             Give your group a name and tell us who you are.
           </p>
         </div>
@@ -64,12 +65,12 @@ export default function CreateGroupPage() {
             maxLength={50}
           />
           {!user && (
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-stone-400">
               Creating as a guest. Your session is saved to this browser only.{' '}
               <button
                 type="button"
                 onClick={() => login('/create')}
-                className="text-indigo-500 hover:underline"
+                className="text-orange-500 hover:text-orange-600 font-medium"
               >
                 Sign in with Google
               </button>{' '}
