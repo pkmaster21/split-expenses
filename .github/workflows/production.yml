@@ -113,6 +113,25 @@ jobs:
           VITE_API_URL: ""
           VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
+      - name: Set Pages Function environment variables
+        run: |
+          curl -s -X PATCH \
+            "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects/tabby" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "deployment_configs": {
+                "production": {
+                  "env_vars": {
+                    "API_URL": {
+                      "value": "${{ secrets.PROD_API_GATEWAY_URL }}",
+                      "type": "plain_text"
+                    }
+                  }
+                }
+              }
+            }' | jq -e '.success'
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3.14.1
         with:
@@ -120,5 +139,3 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: packages/web
           command: pages deploy dist --project-name=tabby --branch=main
-        env:
-          API_URL: ${{ secrets.PROD_API_GATEWAY_URL }}
