@@ -64,7 +64,7 @@ export async function groupRoutes(fastify: FastifyInstance) {
       reply.setCookie(SESSION_COOKIE, sessionToken, {
         httpOnly: true,
         path: '/',
-        sameSite: process.env['NODE_ENV'] === 'prod' ? 'none' : 'lax',
+        sameSite: 'lax',
         secure: process.env['NODE_ENV'] === 'prod',
         maxAge: 60 * 60 * 24 * 30,
       });
