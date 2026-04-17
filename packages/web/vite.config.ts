@@ -25,7 +25,7 @@ export default defineConfig({
         name: 'Tabby',
         short_name: 'Tabby',
         description: 'Split expenses with friends, no account required',
-        theme_color: '#6366f1',
+        theme_color: '#F97316',
         background_color: '#ffffff',
         display: 'standalone',
         start_url: '/',
