@@ -143,7 +143,7 @@ All routes prefixed `/api/v1`. OpenAPI docs at `/docs` when running locally.
 | `GET` | `/groups/:id` | Session | Fetch group by stable ID |
 | `GET` | `/groups/:id/me` | Session | Current user's member record |
 | `GET` | `/groups/:id/members` | Session | List active members |
-| `DELETE` | `/groups/:id/members/:memberId` | Admin+ | Remove member |
+| `DELETE` | `/groups/:id/members/:memberId` | Owner | Remove member |
 | `POST` | `/groups/:id/expenses` | Session | Add expense with splits |
 | `GET` | `/groups/:id/expenses` | Session | List all expenses |
 | `PATCH` | `/groups/:id/expenses/:expenseId` | Session | Edit expense |
@@ -164,15 +164,15 @@ All routes prefixed `/api/v1`. OpenAPI docs at `/docs` when running locally.
 
 ## Roles & Permissions
 
-| Action | Member | Admin | Owner |
-|--------|--------|-------|-------|
-| Add expenses | yes | yes | yes |
-| Edit/delete own expense | yes | yes | yes |
-| Edit/delete any expense | no | yes | yes |
-| Remove members | no | yes | yes |
-| Manage group settings | no | no | yes |
+| Action | Member | Owner |
+|--------|--------|-------|
+| Add expenses | yes | yes |
+| Edit/delete own expense | yes | yes |
+| Edit/delete any expense | no | yes |
+| Remove members | no | yes |
+| Manage group settings | no | yes |
 
-**Ownership recovery:** With Google OAuth, ownership is tied to the user account rather than a browser session. If ownership needs to transfer, it happens lazily to an admin (or oldest active member) on the next owner-level action.
+**Ownership recovery:** With Google OAuth, ownership is tied to the user account rather than a browser session. If ownership needs to transfer, it happens lazily to the oldest active member on the next owner-level action.
 
 ## AWS Architecture Notes
 

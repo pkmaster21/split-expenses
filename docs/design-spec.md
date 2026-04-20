@@ -27,7 +27,7 @@ An expense splitting PWA with Google OAuth. Sign in, create groups, invite frien
 - **Multi-group support** — home page listing all your groups, create and join multiple groups
 - **Group creation** via shareable invite link
 - **Flexible expense splitting:** equal, exact amounts, or percentage-based
-- **Expense editing** — edit previously created expenses (owner or admin)
+- **Expense editing** — edit previously created expenses (expense owner or group owner)
 - **Real-time balance dashboard** showing net debts per person
 - **Debt simplification algorithm** to minimize settlement transactions
 - **Installable PWA** on mobile and desktop via service workers and web manifest
@@ -220,7 +220,7 @@ Member
 ├── group_id (FK → Group, cascade delete)
 ├── user_id (FK → User, nullable — null for legacy anonymous members)
 ├── display_name ("Alice")
-├── role (owner | admin | member)
+├── role (owner | member)
 ├── session_token (hashed, nullable — null for authenticated members)
 ├── joined_at
 └── left_at (nullable — set when member leaves, keeps balance in ledger)
@@ -302,11 +302,11 @@ REST API served via Fastify. All routes are prefixed `/api/v1`. OpenAPI docs aut
 | `GET` | `/groups/:id` | Session | Fetch group name and invite code by stable ID (for settings page) |
 | `GET` | `/groups/:id/me` | Session | Return the current user's member record for this group |
 | `GET` | `/groups/:id/members` | Session | List active members |
-| `DELETE` | `/groups/:id/members/:memberId` | Admin+ | Remove a member |
+| `DELETE` | `/groups/:id/members/:memberId` | Owner | Remove a member |
 | `POST` | `/groups/:id/expenses` | Session | Add an expense with splits |
 | `GET` | `/groups/:id/expenses` | Session | List all expenses |
-| `PATCH` | `/groups/:id/expenses/:expenseId` | Session | Edit an expense (owner of expense or admin) |
-| `DELETE` | `/groups/:id/expenses/:expenseId` | Session | Delete an expense (owner of expense or admin) |
+| `PATCH` | `/groups/:id/expenses/:expenseId` | Session | Edit an expense (owner of expense or group owner) |
+| `DELETE` | `/groups/:id/expenses/:expenseId` | Session | Delete an expense (owner of expense or group owner) |
 | `GET` | `/groups/:id/balances` | Session | Compute and return net balances + settlement plan. `Balance.netCents` and `Settlement.amount` are **integer cents**. Intentionally includes ghost members (those who left) so the ledger stays accurate after someone leaves. |
 | `PATCH` | `/groups/:id/settings` | Owner | Update group name, invite link |
 | `GET` | `/groups/:id/activity` | Session | Fetch activity log (ownership transfers, etc.) — returns the 50 most recent entries, no pagination |
@@ -327,26 +327,21 @@ REST API served via Fastify. All routes are prefixed `/api/v1`. OpenAPI docs aut
 
 ## Permissions & Roles
 
-Three roles, enforced server-side:
+Two roles, enforced server-side:
 
 **Owner** (the person who created the group):
-- All admin permissions
-- Manage group settings (name, expiration, invite link regeneration)
-- Promote members to admin, demote admins back to member
+- Manage group settings (name, invite link regeneration)
+- Remove any member from the group
+- Edit or delete any expense in the group
 - Cannot be removed from the group
-- **Ownership recovery:** With Google OAuth, ownership is tied to the user's account (not a browser session), so ownership loss from clearing browser data is no longer an issue. If ownership needs to transfer for other reasons, it automatically transfers to the first available admin, or if no admins exist, to the earliest-joined active member — triggered lazily the next time an owner-level action is attempted. The transfer is recorded as a group activity feed entry (e.g., "Alice is now the group owner").
-
-**Admin** (promoted by the owner):
-- Add and remove members
-- Add, edit, and delete any expense in the group
-- Cannot modify group settings or manage other admins
+- **Ownership recovery:** With Google OAuth, ownership is tied to the user's account (not a browser session), so ownership loss from clearing browser data is no longer an issue. If ownership needs to transfer for other reasons, it automatically transfers to the earliest-joined active member — triggered lazily the next time an owner-level action is attempted. The transfer is recorded as a group activity feed entry (e.g., "Alice is now the group owner").
 
 **Member** (default role on joining):
 - Add expenses
 - Edit and delete only their own expenses
 - View all balances and settlement plan
 
-**Why this matters for interviews:** This is a lightweight RBAC model — simple enough to implement with a single `role` column on the Member table, but it demonstrates thinking about authorization, not just authentication. Permission checks happen at the API layer (middleware), not in the UI alone.
+**Why this matters for interviews:** This is a lightweight RBAC model — simple enough to implement with a single `role` column on the Member table, but it demonstrates thinking about authorization, not just authentication. Permission checks happen at the API layer (middleware), not in the UI alone. An admin tier (promoted by the owner, able to manage members and any expense but not group settings) is planned for v2 — see `docs/FUTURE.md`.
 
 ---
 
@@ -383,7 +378,7 @@ Three roles, enforced server-side:
 
 **Pipeline stages:**
 1. **On PR:** Lint (ESLint) → Unit tests → Integration tests → Schema drift check → Build check
-2. **On merge to main:** Full test suite → Build → Deploy to production
+2. **On `v*` tag:** Full test suite → Terraform plan + apply (manual approval gate) → Lambda deploy → Cloudflare Pages deploy
 
 **Deployment flow:**
 - Terraform applies infrastructure changes (manual approval gate for production)
