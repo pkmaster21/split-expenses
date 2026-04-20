@@ -148,7 +148,7 @@ All neutrals use Tailwind's `stone` scale — every gray has a warm undertone. N
 - Individual tab: `rounded-lg px-4 py-1.5 text-sm font-medium transition-colors`
 
 ### Badges
-- Roles (owner, admin): `bg-orange-100 text-orange-700` — warm, branded
+- Roles (owner): `bg-orange-100 text-orange-700` — warm, branded
 - Split type (equal, exact, percentage): `bg-stone-100 text-stone-600`
 - Positive state: `bg-green-100 text-green-700`
 - Negative state: `bg-red-100 text-red-700`
